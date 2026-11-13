@@ -903,12 +903,22 @@ if (!class_exists('SAW_GitHub', false)) {
             return $this->root_dir() . '/' . self::JOB_DIR;
         }
 
-        private function job_path($job_id) {
+        /**
+         * 任务文件后缀。
+         *
+         * 早先用的是 .json，但宝塔「网站防篡改」默认把 .json 列在黑名单里：
+         * 文件能写进去，几百毫秒内就被守护进程删掉，于是准备阶段“成功”，
+         * 紧接着的分片请求却找不到任务（表现为 HTTP 404）。换成 .job 绕开，
+         * 这个后缀不在常见防护名单中，也不影响内容仍然是 JSON。
+         */
+        const JOB_EXT = 'job';
+
+        private function job_path($job_id, $ext = self::JOB_EXT) {
             $job_id = preg_replace('/[^a-z0-9]/i', '', (string) $job_id);
             if ($job_id === '') {
                 return '';
             }
-            return $this->job_dir_path() . '/' . $job_id . '.json';
+            return $this->job_dir_path() . '/' . $job_id . '.' . $ext;
         }
 
         public function save_job($job) {
@@ -928,19 +938,23 @@ if (!class_exists('SAW_GitHub', false)) {
         }
 
         public function load_job($job_id) {
-            $path = $this->job_path($job_id);
-            if ($path === '' || !is_readable($path)) {
-                return null;
+            // 新后缀优先，同时兼容 1.7.2 及之前写下的 .json，老任务升级后仍能续传。
+            foreach (array(self::JOB_EXT, 'json') as $ext) {
+                $path = $this->job_path($job_id, $ext);
+                if ($path === '' || !is_readable($path)) {
+                    continue;
+                }
+                $raw = file_get_contents($path);
+                if (!is_string($raw) || $raw === '') {
+                    continue;
+                }
+                $job = json_decode($raw, true);
+                if (!is_array($job) || empty($job['id'])) {
+                    continue;
+                }
+                return $job;
             }
-            $raw = file_get_contents($path);
-            if (!is_string($raw) || $raw === '') {
-                return null;
-            }
-            $job = json_decode($raw, true);
-            if (!is_array($job) || empty($job['id'])) {
-                return null;
-            }
-            return $job;
+            return null;
         }
 
         /**
@@ -957,10 +971,17 @@ if (!class_exists('SAW_GitHub', false)) {
                 return array();
             }
             foreach ($entries as $entry) {
-                if (substr($entry, -5) !== '.json') {
+                // 新后缀与旧 .json 都要认，升级前没下完的任务还能接着下。
+                $ext = '';
+                if (substr($entry, -5) === '.json') {
+                    $ext = 'json';
+                } elseif (substr($entry, -4) === '.' . self::JOB_EXT) {
+                    $ext = self::JOB_EXT;
+                }
+                if ($ext === '') {
                     continue;
                 }
-                $job = $this->load_job(substr($entry, 0, -5));
+                $job = $this->load_job(substr($entry, 0, -(strlen($ext) + 1)));
                 if ($job === null) {
                     continue;
                 }

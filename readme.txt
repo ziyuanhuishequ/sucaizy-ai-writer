@@ -4,7 +4,7 @@ Tags: ai writing, resource article, openai, github, release download
 Requires at least: 6.4
 Tested up to: 6.4.3
 Requires PHP: 7.2
-Stable tag: 1.7.2
+Stable tag: 1.7.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -79,6 +79,10 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 * 从 1.5.0 升级时，如果写作 Skill 仍是 1.5.0 的内置默认内容，插件会自动改用 1.6.0 的新默认规范；自己改过的 Skill 不会被覆盖。
 
 == Changelog ==
+
+= 1.7.3 =
+* 修复装了宝塔「网站防篡改」的服务器上点了「开始下载」马上报 HTTP 404 的问题。原因是下载任务文件用了 .json 后缀，而防篡改默认把 .json 列为可疑扩展名，文件写进去后几百毫秒就被守护进程删掉，于是准备阶段显示成功、紧接着的分片请求找不到任务。任务文件改用 .job 后缀，内容仍是 JSON，旧任务也能继续续传。
+* 顺带修下载失败时长文件名被挤成一列的问题，错误信息改为独占一行显示。
 
 = 1.7.2 =
 * 修掉「下载 GitHub 内容」按钮一进页面就露出来的问题：按钮靠 hidden 属性控制显隐，但 WordPress 后台的 .button 样式和前台主题都会把 display 写死，优先级高于浏览器默认的 [hidden]，于是没填地址时按钮也一直显示。现在用一条更高优先级的规则压回去。

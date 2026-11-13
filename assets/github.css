@@ -68,9 +68,14 @@ body.saw-modal-open { overflow: hidden; }
 .saw-gh-job.is-done { border-color: #b8e0c4; background: #f4fbf6; }
 .saw-gh-job.is-error { border-color: #f0c0c0; background: #fdf5f5; }
 .saw-gh-job-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 7px; font-size: 12px; }
-.saw-gh-job-name { font-weight: 600; word-break: break-all; }
-.saw-gh-job-meta { color: #646970; font-variant-numeric: tabular-nums; text-align: right; flex: 0 0 auto; }
+/* 名字与右侧信息同处一行时，两边都要能收缩。以前 meta 是 flex:0 0 auto，
+ * 失败提示一长就把文件名挤到只剩一个字符宽，整串名字竖着排下来。 */
+.saw-gh-job-name { font-weight: 600; word-break: break-all; flex: 0 1 auto; min-width: 90px; }
+.saw-gh-job-meta { color: #646970; font-variant-numeric: tabular-nums; text-align: right; flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .saw-gh-job.is-error .saw-gh-job-meta { color: #b32d2e; }
+/* 出错时提示往往很长，直接让信息独占一行，别和文件名抢宽度。 */
+.saw-gh-job.is-error .saw-gh-job-head { flex-direction: column; gap: 4px; }
+.saw-gh-job.is-error .saw-gh-job-meta { text-align: left; }
 .saw-gh-bar { height: 6px; background: #f0f0f1; border-radius: 3px; overflow: hidden; }
 .saw-gh-bar i { display: block; height: 100%; width: 0; background: #2271b1; border-radius: 3px; transition: width .25s ease; }
 .saw-gh-job.is-done .saw-gh-bar i { background: #008a20; }
