@@ -71,7 +71,8 @@
         releases: [],
         selected: {},
         subdirTouched: false,
-        busy: false
+        busy: false,
+        scanInfo: null
     };
 
     /**
@@ -98,6 +99,32 @@
             ? '文件直接存到你的电脑，不占服务器空间。浏览器若提示“已阻止多个下载”，点允许即可。'
             : '文件存到下面的服务器目录。放在网站目录里能拿到站内链接，方便写进文章。');
         updateSelectionSummary();
+        renderScanMessage();
+    }
+
+    /**
+     * 扫描结束时那几行提示。
+     *
+     * “目录可写、单文件上限”只跟存到服务器有关，本机模式提这些会让人以为
+     * 下载受这些条件限制，所以按当前模式决定说不说。
+     */
+    function renderScanMessage() {
+        var info = ghState.scanInfo;
+        if (!info) {
+            return;
+        }
+        if (ghTarget() === 'local') {
+            showMessage($('#saw-gh-message'), '', false);
+            return;
+        }
+        var msgs = [];
+        if (!info.rootReady) {
+            msgs.push('保存目录 ' + info.root + ' 还不可写，第一次下载会自动创建；如果失败请到设置页检查目录权限。');
+        }
+        if (info.maxMb) {
+            msgs.push('单个文件上限 ' + info.maxMb + ' MB。');
+        }
+        showMessage($('#saw-gh-message'), msgs.join(' '), !info.rootReady);
     }
 
     function ghPost(action, data) {
@@ -483,14 +510,12 @@
             updatePathPreview();
 
             var rootReady = data.root_ready;
-            var msgs = [];
-            if (!rootReady) {
-                msgs.push('保存目录 ' + data.root + ' 还不可写，第一次下载会自动创建；如果失败请到设置页检查目录权限。');
-            }
-            if (data.max_mb) {
-                msgs.push('单个文件上限 ' + data.max_mb + ' MB。');
-            }
-            showMessage($('#saw-gh-message'), msgs.join(' '), !rootReady);
+            ghState.scanInfo = {
+                root: data.root || '',
+                rootReady: !!rootReady,
+                maxMb: data.max_mb || 0
+            };
+            renderScanMessage();
         }).catch(function (error) {
             $('#saw-gh-repo').text('读取 ' + repo + ' 失败');
             showMessage($('#saw-gh-message'), error.message, true);
