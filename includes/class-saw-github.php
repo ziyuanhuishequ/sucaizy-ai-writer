@@ -893,8 +893,10 @@ if (!class_exists('SAW_GitHub', false)) {
         }
 
         private function new_job_id() {
+            // 只生成小写：任务 id 会出现在文件名里，大小写混排时任何一处
+            // 顺手做的 sanitize（比如 sanitize_key）都会把它改掉，进而找不到文件。
             if (function_exists('wp_generate_password')) {
-                return substr(preg_replace('/[^a-z0-9]/i', '', wp_generate_password(20, false)), 0, 16);
+                return strtolower(substr(preg_replace('/[^a-z0-9]/i', '', wp_generate_password(20, false)), 0, 16));
             }
             return substr(md5(uniqid('', true)), 0, 16);
         }

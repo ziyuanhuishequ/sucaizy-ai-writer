@@ -4,7 +4,7 @@ Tags: ai writing, resource article, openai, github, release download
 Requires at least: 6.4
 Tested up to: 6.4.3
 Requires PHP: 7.2
-Stable tag: 1.7.3
+Stable tag: 1.7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -79,6 +79,10 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 * 从 1.5.0 升级时，如果写作 Skill 仍是 1.5.0 的内置默认内容，插件会自动改用 1.6.0 的新默认规范；自己改过的 Skill 不会被覆盖。
 
 == Changelog ==
+
+= 1.7.4 =
+* 修掉「点开始下载就报请求失败（HTTP 404）」：接收分片请求时用 sanitize_key() 读任务 id，这个函数会把字母全部转成小写，而任务 id 是大小写混合的，小写化之后拼出来的文件名和磁盘上的对不上，于是读不到任务。改成保留大小写的清洗方式，并把新任务 id 统一生成为小写，双保险。
+* 这一版才第一次在真实服务器上跑通完整下载流程，1.7.0 起的浏览器端下载其实一直卡在这一步；之前只在命令行里验证过下载与合并逻辑。
 
 = 1.7.3 =
 * 修复装了宝塔「网站防篡改」的服务器上点了「开始下载」马上报 HTTP 404 的问题。原因是下载任务文件用了 .json 后缀，而防篡改默认把 .json 列为可疑扩展名，文件写进去后几百毫秒就被守护进程删掉，于是准备阶段显示成功、紧接着的分片请求找不到任务。任务文件改用 .job 后缀，内容仍是 JSON，旧任务也能继续续传。

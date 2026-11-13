@@ -788,6 +788,23 @@ if (!class_exists('SAW_Admin', false)) {
             return $this->github;
         }
 
+        /**
+         * 读取并清洗任务 id。
+         *
+         * 这里不能用 sanitize_key()：它会把字母统一转成小写，而任务 id 是
+         * 大小写混合的（wp_generate_password 生成），小写化之后拼出来的
+         * 文件名和磁盘上的对不上，load_job() 读不到，请求就变成 404。
+         */
+        private function read_job_id($key = 'job_id') {
+            $raw = '';
+            if (isset($_POST[$key])) {
+                $raw = wp_unslash($_POST[$key]);
+            } elseif (isset($_GET[$key])) {
+                $raw = wp_unslash($_GET[$key]);
+            }
+            return preg_replace('/[^A-Za-z0-9]/', '', (string) $raw);
+        }
+
         private function load_owned_job($job_id) {
             $job = $this->github->load_job($job_id);
             if ($job === null) {
@@ -902,7 +919,7 @@ if (!class_exists('SAW_Admin', false)) {
             }
             $github = $this->require_github();
 
-            $job = $this->load_owned_job(isset($_POST['job_id']) ? sanitize_key($_POST['job_id']) : '');
+            $job = $this->load_owned_job($this->read_job_id());
             $index = isset($_POST['index']) ? absint($_POST['index']) : 0;
 
             $result = $github->fetch_part($job, $index);
@@ -932,7 +949,7 @@ if (!class_exists('SAW_Admin', false)) {
             }
             $github = $this->require_github();
 
-            $job = $this->load_owned_job(isset($_POST['job_id']) ? sanitize_key($_POST['job_id']) : '');
+            $job = $this->load_owned_job($this->read_job_id());
             $result = $github->merge($job);
             if (is_wp_error($result)) {
                 $this->json_fail($result->get_error_message());
@@ -951,7 +968,7 @@ if (!class_exists('SAW_Admin', false)) {
             }
             $github = $this->require_github();
 
-            $job_id = isset($_POST['job_id']) ? sanitize_key($_POST['job_id']) : '';
+            $job_id = $this->read_job_id();
             if ($job_id !== '') {
                 $job = $this->load_owned_job($job_id);
                 $this->json_ok(array(
@@ -990,7 +1007,7 @@ if (!class_exists('SAW_Admin', false)) {
                 $this->json_fail('没有下载文件的权限。', 403);
             }
             $github = $this->require_github();
-            $job = $this->load_owned_job(isset($_POST['job_id']) ? sanitize_key($_POST['job_id']) : '');
+            $job = $this->load_owned_job($this->read_job_id());
             $github->abort($job);
             $this->json_ok(array('message' => '已取消并删除未完成的分片。'));
         }
@@ -1033,7 +1050,7 @@ if (!class_exists('SAW_Admin', false)) {
                 wp_die('GitHub 下载模块没有加载成功。', '模块缺失', array('response' => 500));
             }
 
-            $job_id = isset($_REQUEST['job_id']) ? sanitize_key(wp_unslash($_REQUEST['job_id'])) : '';
+            $job_id = $this->read_job_id();
             $job = $this->github->load_job($job_id);
             if ($job === null) {
                 wp_die('找不到这个下载任务，可能已经过期或被清理了。', '任务不存在', array('response' => 404));
