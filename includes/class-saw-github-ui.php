@@ -83,7 +83,37 @@ if (!class_exists('SAW_GitHub_UI', false)) {
 
                         <div class="saw-gh-assets" id="saw-gh-assets"></div>
 
-                        <div class="saw-gh-path">
+                        <div class="saw-gh-target" id="saw-gh-target">
+                            <p class="saw-gh-target-title">下载到</p>
+                            <div class="saw-gh-target-options">
+                                <label class="saw-gh-target-option is-active" data-target="local">
+                                    <input type="radio" name="saw-gh-target" value="local" checked>
+                                    <span class="saw-gh-target-text">
+                                        <span class="saw-gh-target-label">本机电脑</span>
+                                        <span class="saw-gh-target-note">直接下到浏览器的下载文件夹，服务器不存文件</span>
+                                    </span>
+                                </label>
+                                <label class="saw-gh-target-option" data-target="server">
+                                    <input type="radio" name="saw-gh-target" value="server">
+                                    <span class="saw-gh-target-text">
+                                        <span class="saw-gh-target-label">服务器目录</span>
+                                        <span class="saw-gh-target-note">存到网站目录，能拿到站内链接写进文章</span>
+                                    </span>
+                                </label>
+                            </div>
+                            <p class="description" id="saw-gh-target-note"></p>
+                        </div>
+
+                        <div class="saw-gh-route" id="saw-gh-route-box">
+                            <label for="saw-gh-route">下载线路</label>
+                            <select id="saw-gh-route">
+                                <option value="direct">直连 GitHub</option>
+                                <option value="mirror">镜像加速（直连卡住时用）</option>
+                            </select>
+                            <p class="description" id="saw-gh-route-note">直连下不动就换镜像：会先让服务器探一条能用的地址，再交给浏览器。</p>
+                        </div>
+
+                        <div class="saw-gh-path" id="saw-gh-path">
                             <div class="saw-gh-path-row">
                                 <label for="saw-gh-subdir">保存到</label>
                                 <div class="saw-gh-path-input">
@@ -93,8 +123,11 @@ if (!class_exists('SAW_GitHub_UI', false)) {
                             </div>
                             <label class="saw-gh-check"><input type="checkbox" id="saw-gh-by-os" checked> 按系统分子文件夹（Windows / macOS / Linux）</label>
                             <p class="description saw-gh-root-note" id="saw-gh-root-note"></p>
-                            <p class="description" id="saw-gh-abs"></p>
                         </div>
+
+                        <!-- 保存位置预览放在路径块外面：本机模式下路径块是隐藏的，
+                             提示还得留着，不然用户不知道文件会落到哪。 -->
+                        <p class="description saw-gh-abs" id="saw-gh-abs"></p>
 
                         <div class="saw-gh-progress" id="saw-gh-progress" hidden></div>
                         <p id="saw-gh-message" role="status"></p>

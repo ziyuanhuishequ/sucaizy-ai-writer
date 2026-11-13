@@ -51,6 +51,29 @@ body.saw-modal-open { overflow: hidden; }
 .saw-gh-os-source { background: #f3ecfa; color: #5c2d91; }
 .saw-gh-os-other { background: #f0f0f1; color: #646970; }
 
+/* 保存位置：本机 / 服务器。默认本机，所以这一块放在资产列表下方、路径上方，
+ * 勾完文件顺手就能确认落到哪里。 */
+.saw-gh-target { margin-top: 16px; padding: 12px 14px; background: #f6f7f7; border-radius: 4px; }
+.saw-gh-target-title { margin: 0 0 8px; font-weight: 600; }
+.saw-gh-target-options { display: flex; flex-wrap: wrap; gap: 10px; }
+.saw-gh-target-option { display: flex; align-items: flex-start; gap: 8px; flex: 1 1 300px; margin: 0; padding: 9px 11px; border: 1px solid #dcdcde; border-radius: 4px; background: #fff; cursor: pointer; }
+.saw-gh-target-option:hover { border-color: #2271b1; }
+.saw-gh-target-option.is-active { border-color: #2271b1; box-shadow: 0 0 0 1px #2271b1; background: #f0f6fc; }
+.saw-gh-target-option input[type="radio"] { margin: 2px 0 0; flex: 0 0 auto; }
+.saw-gh-target-text { display: block; min-width: 0; }
+.saw-gh-target-label { display: block; font-weight: 600; color: #1d2327; }
+.saw-gh-target-note { display: block; margin-top: 2px; color: #646970; font-size: 12px; line-height: 1.5; }
+.saw-gh-target .description { margin: 10px 0 0; }
+
+.saw-gh-route { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding: 10px 14px; background: #f6f7f7; border-radius: 4px; }
+.saw-gh-route > label { font-weight: 600; }
+.saw-gh-route select { min-width: 200px; }
+.saw-gh-route .description { margin: 0; flex: 1 1 240px; }
+
+/* 两块都用 flex，[hidden] 顶不住，得显式压掉。 */
+#saw-gh-path[hidden],
+#saw-gh-route-box[hidden] { display: none !important; }
+
 .saw-gh-path { margin-top: 16px; padding: 14px; background: #f6f7f7; border-radius: 4px; }
 .saw-gh-path-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
 .saw-gh-path-row > label { font-weight: 600; }
@@ -60,6 +83,8 @@ body.saw-modal-open { overflow: hidden; }
 .saw-gh-path-input input[type="text"] { flex: 1; border: 0; box-shadow: none; min-width: 120px; }
 .saw-gh-path-input input[type="text"]:focus { box-shadow: none; outline: 0; }
 .saw-gh-path .description { margin: 8px 0 0; }
+/* 保存位置预览：路径块在里面时靠缩进对齐，移到外面后自己带一点上边距。 */
+.saw-gh-abs { margin: 8px 0 0; color: #50575e; }
 .saw-gh-paths { margin: 6px 0 0 18px; padding: 0; list-style: disc; }
 .saw-gh-paths li { margin: 2px 0; font: 12px/1.6 Consolas, Monaco, monospace; color: #50575e; word-break: break-all; }
 
@@ -118,3 +143,9 @@ body:not(.wp-admin) .saw-modal .description { margin: 8px 0 0; color: #646970; f
 body:not(.wp-admin) .saw-modal code { padding: 1px 4px; background: #f0f0f1; border-radius: 3px; font: 12px/1.6 Consolas, Monaco, monospace; word-break: break-all; }
 body:not(.wp-admin) .saw-modal table { margin: 0; border: 0; background: none; }
 body:not(.wp-admin) .saw-modal td, body:not(.wp-admin) .saw-modal th { border: 0; }
+/* 上面那条 label 规则会把“下载到”的卡片压成 inline-flex，这里压回来。 */
+body:not(.wp-admin) .saw-modal .saw-gh-target-option { display: flex; align-items: flex-start; gap: 8px; }
+body:not(.wp-admin) .saw-modal .saw-gh-target-label,
+body:not(.wp-admin) .saw-modal .saw-gh-target-note { display: block; }
+body:not(.wp-admin) .saw-modal .saw-gh-route { display: flex; }
+body:not(.wp-admin) .saw-modal input[type="radio"] { width: 16px; height: 16px; margin: 2px 0 0; }

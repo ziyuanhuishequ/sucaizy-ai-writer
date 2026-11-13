@@ -32,6 +32,8 @@ if (!class_exists('SAW_Admin', false)) {
             // 把服务器上的文件读出来吐给浏览器：下载根目录在站外（没有公网链接）时，
             // 靠这个入口把文件取回本机。
             add_action('wp_ajax_saw_gh_file', array($this, 'ajax_gh_file'));
+            // 下载到本机时用：只回一条浏览器能直接访问的地址，不写服务器硬盘。
+            add_action('wp_ajax_saw_gh_direct', array($this, 'ajax_gh_direct'));
         }
 
         public function add_menu() {
@@ -527,6 +529,7 @@ if (!class_exists('SAW_Admin', false)) {
                                 <input type="text" id="saw_gh_root" name="saw_gh_root" value="<?php echo esc_attr(get_option('saw_gh_root', '')); ?>" class="regular-text code" placeholder="<?php echo esc_attr($this->default_gh_root()); ?>">
                                 <p class="description">
                                     留空即用 <code><?php echo esc_html($this->default_gh_root()); ?></code>。<br>
+                                    只在「保存到服务器目录」时才用到这个目录；选「本机电脑」下载的话文件直接进浏览器的下载文件夹，这里填不填都行。<br>
                                     想换地方就填绝对路径，两种都行：
                                     <strong>在网站内容目录里</strong>（如 <code><?php echo esc_html(str_replace('\\', '/', WP_CONTENT_DIR)); ?>/downloads</code>）下载完直接给公网链接，能写进文章；
                                     <strong>在内容目录之外</strong>（如 <code>/www/wwwroot/downloads</code>）只显示服务器路径，不对外暴露，需要时用「下载到本机」取回。
@@ -567,7 +570,8 @@ if (!class_exists('SAW_Admin', false)) {
                                 <label>单片超时 <input type="number" name="saw_gh_timeout" min="15" max="180" step="5" value="<?php echo esc_attr(get_option('saw_gh_timeout', 45)); ?>" class="small-text"> 秒</label>
                                 <p class="description">
                                     分片数越多越快，但要求主机的 PHP 能同时处理多个请求。共享主机建议 2-3，独立服务器可以 4-6。
-                                    小于 8 MB 的文件会自动按单连接下载。
+                                    小于 8 MB 的文件会自动按单连接下载。单文件上限只约束「保存到服务器目录」，
+                                    下载到本机时文件不落服务器，不受这个限制。
                                 </p>
                             </td>
                         </tr>
@@ -1029,6 +1033,41 @@ if (!class_exists('SAW_Admin', false)) {
             $this->json_ok(array(
                 'dir' => $dir,
                 'files' => $github->list_dir($dir),
+            ));
+        }
+
+        /**
+         * 给「下载到本机」挑一条浏览器能用得上的地址。
+         *
+         * 本机下载不落服务器硬盘，浏览器自己去取文件，所以这里只探测不落盘：
+         * 用一次 2 字节的 Range 请求试出哪条线路通（直连或镜像），把那条地址
+         * 原样返回，前端拿去触发浏览器下载。
+         *
+         * 不做这个探测的话，国内直连 GitHub 经常卡在 0%，用户只能看着进度条不动。
+         */
+        public function ajax_gh_direct() {
+            $this->begin_json();
+            check_ajax_referer('saw_admin_nonce', 'nonce');
+            if (!current_user_can('manage_options')) {
+                $this->json_fail('没有下载文件的权限。', 403);
+            }
+            $github = $this->require_github();
+
+            $url = isset($_POST['url']) ? esc_url_raw(wp_unslash($_POST['url'])) : '';
+            if ($url === '') {
+                $this->json_fail('缺少文件地址。');
+            }
+
+            $probe = $github->probe($url);
+            if (is_wp_error($probe)) {
+                $this->json_fail($probe->get_error_message());
+            }
+
+            $this->json_ok(array(
+                'url' => $github->build_url($probe['url'], $probe['route']),
+                'label' => $probe['label'],
+                'via_mirror' => $probe['route'] !== '',
+                'size' => (int) $probe['size'],
             ));
         }
 

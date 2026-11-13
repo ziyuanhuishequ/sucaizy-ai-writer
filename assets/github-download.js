@@ -74,6 +74,32 @@
         busy: false
     };
 
+    /**
+     * 现在的保存目标：local（本机电脑）或 server（服务器目录）。
+     *
+     * 默认本机：多数人只是想拿到安装包，没必要先占一份服务器硬盘。
+     * 想给文章配下载链接的才切到服务器模式。
+     */
+    function ghTarget() {
+        var value = $('input[name="saw-gh-target"]:checked').val();
+        return value === 'server' ? 'server' : 'local';
+    }
+
+    /** 两种模式共用一套弹窗，这里负责把不相关的控件收起来。 */
+    function syncTarget() {
+        var local = ghTarget() === 'local';
+        $('.saw-gh-target-option').each(function () {
+            $(this).toggleClass('is-active', $(this).attr('data-target') === (local ? 'local' : 'server'));
+        });
+        $('#saw-gh-path').prop('hidden', local);
+        $('#saw-gh-route-box').prop('hidden', !local);
+        $('#saw-gh-start').text(local ? '下载到本机' : '开始下载');
+        $('#saw-gh-target-note').text(local
+            ? '文件直接存到你的电脑，不占服务器空间。浏览器若提示“已阻止多个下载”，点允许即可。'
+            : '文件存到下面的服务器目录。放在网站目录里能拿到站内链接，方便写进文章。');
+        updateSelectionSummary();
+    }
+
     function ghPost(action, data) {
         return new Promise(function (resolve, reject) {
             var ctx = ghCtx();
@@ -160,7 +186,7 @@
         button.prop('hidden', !repo);
         if (repo) {
             button.text(ghState.repo === repo && ghState.releases.length ? '下载 GitHub 内容（' + repo + '）' : '下载 GitHub 内容');
-            hint.prop('hidden', false).text('识别到 GitHub 项目 ' + repo + '。可以把 Release 里的安装包下载到服务器指定目录（站内目录直接给链接），也可以下完再取回本机。');
+            hint.prop('hidden', false).text('识别到 GitHub 项目 ' + repo + '。可以把 Release 里的安装包直接下载到你的电脑，也可以存到服务器目录（站内目录会给链接，方便写进文章）。');
         } else {
             hint.prop('hidden', true).text('');
         }
@@ -334,9 +360,24 @@
     }
 
     function updatePathPreview() {
-        describeRoot();
         var picked = selectedAssets();
         var box = $('#saw-gh-abs').empty();
+
+        // 本机模式没有服务器路径可预览，改成“会下哪几个文件”的确认清单。
+        if (ghTarget() === 'local') {
+            if (!picked.length) {
+                box.text('勾选文件后点「下载到本机」，文件会存到浏览器的下载文件夹。');
+                return;
+            }
+            var names = picked.map(function (asset) { return asset.name; });
+            var total = picked.reduce(function (sum, asset) { return sum + (Number(asset.size) || 0); }, 0);
+            var text = '将下载 ' + picked.length + ' 个文件（共 ' + formatSize(total) + '）到你的电脑：'
+                + names.slice(0, 3).join('、') + (names.length > 3 ? ' 等' : '');
+            box.text(text);
+            return;
+        }
+
+        describeRoot();
         var root = ghConfig().root || '(未设置下载根目录)';
         $('#saw-gh-root').text(root.replace(/\/+$/, '') + '/');
         if (!picked.length) {
@@ -381,6 +422,7 @@
         }
         $('#saw-gh-modal').prop('hidden', false);
         document.body.classList.add('saw-modal-open');
+        syncTarget();
         scanRepository(repo);
     }
 
@@ -606,10 +648,124 @@
         });
     }
 
+    /* ---------------------------------------------------------------------
+     * 下载到本机
+     *
+     * 不经过服务器硬盘：由浏览器自己去取文件。服务器只发几百字节的探测请求，
+     * 不占空间也不耗它的带宽。代价是浏览器得能访问到那个地址，所以直连卡住
+     * 时可以让服务器先探一条镜像线路（saw_gh_direct），再把地址交给浏览器。
+     * ------------------------------------------------------------------ */
+
+    /**
+     * 触发一次浏览器下载。
+     *
+     * 跨域地址的 download 属性会被浏览器忽略，文件名改由对方的
+     * Content-Disposition 决定 —— GitHub 和常见镜像都会带上，够用。
+     */
+    function triggerBrowserDownload(url, filename) {
+        var link = document.createElement('a');
+        link.href = url;
+        if (filename) {
+            link.setAttribute('download', filename);
+        }
+        link.rel = 'noopener';
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        window.setTimeout(function () {
+            if (link.parentNode) {
+                link.parentNode.removeChild(link);
+            }
+        }, 4000);
+    }
+
+    function startLocalDownload(picked) {
+        var useMirror = $('#saw-gh-route').val() === 'mirror';
+        ghState.busy = true;
+        $('#saw-gh-start').prop('disabled', true);
+        $('#saw-gh-progress').prop('hidden', false).empty();
+        $('#saw-gh-spinner').addClass('is-active');
+        showMessage($('#saw-gh-message'), useMirror
+            ? '正在让服务器挑一条能用的线路，挑好一个就交给浏览器一个…'
+            : '正在交给浏览器下载，共 ' + picked.length + ' 个文件…', false);
+
+        var rows = picked.map(function (asset) {
+            var box = $('<div>').addClass('saw-gh-job').attr('data-name', asset.name);
+            box.append(
+                $('<div>').addClass('saw-gh-job-head').append(
+                    $('<span>').addClass('saw-gh-job-name').text(asset.name),
+                    $('<span>').addClass('saw-gh-job-meta').text(useMirror ? '探测线路…' : '准备中…')
+                )
+            );
+            $('#saw-gh-progress').append(box);
+            return { asset: asset, box: box };
+        });
+
+        var failed = [];
+        var index = 0;
+
+        function next() {
+            if (index >= rows.length) {
+                return Promise.resolve();
+            }
+            var item = rows[index++];
+            var meta = item.box.find('.saw-gh-job-meta');
+            var step = useMirror
+                ? ghPost('saw_gh_direct', { url: item.asset.url }).then(function (data) {
+                    meta.text('线路：' + (data.label || '直连'));
+                    return data.url;
+                })
+                : Promise.resolve(item.asset.url);
+
+            return step.then(function (url) {
+                triggerBrowserDownload(url, item.asset.name);
+                item.box.addClass('is-done');
+                item.box.append(
+                    $('<div>').addClass('saw-gh-job-done')
+                        .append($('<span>').text('已交给浏览器，存到下载文件夹'))
+                        .append($('<a>').addClass('saw-gh-link').attr({
+                            href: url,
+                            download: item.asset.name,
+                            rel: 'noopener'
+                        }).text('重新下载'))
+                );
+                meta.text((item.asset.size_text || '') + ' · 已发起');
+                // 连续弹多次下载会被浏览器拦下来，隔一下更稳。
+                return new Promise(function (resolve) {
+                    window.setTimeout(resolve, 900);
+                }).then(next);
+            }).catch(function (error) {
+                item.box.addClass('is-error');
+                meta.text('失败：' + error.message);
+                failed.push(item.asset.name + '：' + error.message);
+                return next();
+            });
+        }
+
+        next().then(function () {
+            ghState.busy = false;
+            $('#saw-gh-start').prop('disabled', !selectedAssets().length);
+            $('#saw-gh-spinner').removeClass('is-active');
+            var parts = [];
+            if (!failed.length) {
+                parts.push('已把 ' + rows.length + ' 个文件交给浏览器下载。');
+            } else {
+                parts.push('成功发起 ' + (rows.length - failed.length) + ' 个，失败 ' + failed.length + ' 个。' + failed.join('　'));
+            }
+            parts.push('文件会存到浏览器的下载目录。没反应就看一下地址栏右侧有没有拦截提示，或者换成「镜像加速」再试。');
+            showMessage($('#saw-gh-message'), parts.join(' '), !!failed.length);
+        });
+    }
+
     function startGithubDownload() {
         var picked = selectedAssets();
         if (!picked.length) {
             showMessage($('#saw-gh-message'), '请先勾选要下载的文件。', true);
+            return;
+        }
+        // 本机模式不写服务器，上面那条单文件上限也就不用管。
+        if (ghTarget() === 'local') {
+            startLocalDownload(picked);
             return;
         }
         var maxMb = ghConfig().maxMb || 512;
@@ -732,6 +888,15 @@
 
     $(document).on('change', '#saw-gh-by-os', updatePathPreview);
 
+    $(document).on('change', 'input[name="saw-gh-target"]', syncTarget);
+
+    $(document).on('change', '#saw-gh-route', function () {
+        var mirror = $(this).val() === 'mirror';
+        $('#saw-gh-route-note').text(mirror
+            ? '每勾一个文件会多花几秒探测线路，换来的是一条能下动的地址。'
+            : '直连下不动就换镜像：会先让服务器探一条能用的地址，再交给浏览器。');
+    });
+
     $(document).on('click', '#saw-gh-start', startGithubDownload);
 
     $(document).on('click', '#saw-gh-refresh', function () {
@@ -778,5 +943,7 @@
 
     // 页面刚打开时如果输入框里已经有地址（比如浏览器恢复表单内容），也要显示按钮。
     refreshGithubButton();
+    // 弹窗可能在页面里但不显示（前台未渲染面板），这里同步一次不会报错。
+    syncTarget();
 
 })(jQuery);
