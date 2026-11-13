@@ -3,7 +3,7 @@
  * Plugin Name: 素材资源网 AI 文章写作
  * Plugin URI: https://www.sucaizy.com/
  * Description: 输入项目链接、软件名称或素材名称，按素材资源网写作规范自动生成中文文章并保存为草稿；识别到 GitHub 地址时可把 Release 安装包分片下载到指定目录。并发抓取资料与网上已有的同类介绍，标题 43-67 字，简介写成真人推荐口吻，标题与特点字数自动校验，并显示每次生成的 token 用量与估算费用。
- * Version: 1.7.1
+ * Version: 1.7.2
  * Author: Sucaizy
  * Author URI: https://www.sucaizy.com/
  * Requires at least: 6.4
@@ -61,7 +61,7 @@ if (defined('SAW_VERSION')) {
     return;
 }
 
-define('SAW_VERSION', '1.7.1');
+define('SAW_VERSION', '1.7.2');
 define('SAW_FILE', __FILE__);
 define('SAW_DIR', plugin_dir_path(__FILE__));
 define('SAW_URL', plugin_dir_url(__FILE__));

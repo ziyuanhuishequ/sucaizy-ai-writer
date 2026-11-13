@@ -2,6 +2,16 @@
 
 本项目从 1.6.5 起公开源码，之后的改动都记在这里。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循语义化版本。
 
+## [1.7.2] - 2026-11-13
+
+### 修复
+
+- **没填地址也显示「下载 GitHub 内容」**：按钮用 `hidden` 属性控制显隐，但 WordPress 后台的 `.button { display: inline-block }` 和前台主题的按钮样式优先级高于浏览器默认的 `[hidden] { display: none }`，导致属性被压住、按钮一直露着。1.7.1 起前台也有这个按钮，问题更明显。现在补一条 `#saw-gh-open[hidden] { display: none !important }`。
+
+### 文档
+
+- readme 里补了一条排障说明：装了宝塔「网站防篡改」的服务器，插件目录会被保护，WordPress 更新插件会停在「正在移除当前插件」并提示「无法移除当前插件」；更新前先暂停防篡改，或把 `wp-content` 加进白名单。
+
 ## [1.7.1] - 2026-11-13
 
 补上前台入口，并把「存哪里」这件事说清楚。

@@ -4,7 +4,7 @@ Tags: ai writing, resource article, openai, github, release download
 Requires at least: 6.4
 Tested up to: 6.4.3
 Requires PHP: 7.2
-Stable tag: 1.7.1
+Stable tag: 1.7.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -79,6 +79,10 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 * 从 1.5.0 升级时，如果写作 Skill 仍是 1.5.0 的内置默认内容，插件会自动改用 1.6.0 的新默认规范；自己改过的 Skill 不会被覆盖。
 
 == Changelog ==
+
+= 1.7.2 =
+* 修掉「下载 GitHub 内容」按钮一进页面就露出来的问题：按钮靠 hidden 属性控制显隐，但 WordPress 后台的 .button 样式和前台主题都会把 display 写死，优先级高于浏览器默认的 [hidden]，于是没填地址时按钮也一直显示。现在用一条更高优先级的规则压回去。
+* 顺手在后台提交问题：服务器上装了宝塔「网站防篡改」时，插件目录被保护，WordPress 更新插件会在「正在移除当前插件」这一步失败，并提示「无法移除当前插件」。更新前先在面板里暂停防篡改，或把 wp-content 加进白名单。
 
 = 1.7.1 =
 * 前台投稿页也支持下载了：投稿页的「生成文章」旁边同样会出现「下载 GitHub 内容」，用的是同一套弹窗，不用再回后台操作。

@@ -5,6 +5,11 @@
 .saw-gh-hint { margin: 10px 0 0; padding: 8px 12px; background: #f0f6fc; border-left: 3px solid #2271b1; color: #3c434a; }
 #saw-gh-open { white-space: nowrap; }
 
+/* 按钮靠 hidden 属性控制显隐，但 WP 后台的 .button 和前台主题都会把 display 写死，
+ * 优先级高于浏览器默认的 [hidden]，按钮就会一直露在外面。这里强制压回去。 */
+#saw-gh-open[hidden],
+.saw-gh-hint[hidden] { display: none !important; }
+
 .saw-modal { position: fixed; inset: 0; z-index: 100000; display: flex; align-items: center; justify-content: center; padding: 24px; }
 .saw-modal[hidden] { display: none; }
 .saw-modal-mask { position: absolute; inset: 0; background: rgba(0, 0, 0, .55); }
