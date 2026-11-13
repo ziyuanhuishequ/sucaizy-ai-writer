@@ -35,7 +35,7 @@
 | 前端投稿 | 在投稿页生成并写入普通表单、TinyMCE 或 contenteditable 编辑器；也可用短代码 `[sucaizy_ai_writer]` 嵌到任意页面 |
 | 接口兼容 | OpenAI Responses API 与常见 OpenAI 兼容 Chat Completions 接口；DeepSeek 默认关闭思考模式省费用 |
 | 环境自检 | 设置页直接列出 PHP 版本、json/openssl/mbstring/curl/dom 扩展状态和脚本超时 |
-| GitHub 下载 | 识别到仓库地址后，可把 Release 安装包分片下载到服务器指定目录：多版本、按系统归档、多线路自动换线、断点续传，完成后给出站内链接 |
+| GitHub 下载 | 识别到仓库地址后，可把 Release 安装包分片下载到服务器指定目录：多版本、按系统归档、多线路自动换线、断点续传。后台写作页与前台投稿页都有入口，下完给站内链接或直接取回本机 |
 
 ## 截图
 
@@ -75,14 +75,14 @@
 
 ## GitHub 下载怎么用
 
-1. 在「生成文章」上方的输入框里贴 `https://github.com/owner/repo`（或直接写 `owner/repo`），「下载 GitHub 内容」按钮就会出现。
+1. 在「生成文章」上方的输入框里贴 `https://github.com/owner/repo`（或直接写 `owner/repo`），「下载 GitHub 内容」按钮就会出现。后台写作页和前台投稿页（短代码或页脚「AI 写文章」面板）都有这个入口，两边是同一套界面。
 2. 点开弹窗，选版本、勾文件。列表里已经按 macOS / Windows / Linux / 通用 分好，可以只勾某一列。
 3. 「保存到」填一个子目录，比如 `cli/v2.104.0`，弹窗里会实时显示每个文件的完整落盘路径。
-4. 点「开始下载」，分片并发跑完自动合并，完成后给出服务器路径；如果根目录在网站内容目录里，还会给出可直接引用的公网链接。
+4. 点「开始下载」，分片并发跑完自动合并。完成后给两样东西：服务器上的绝对路径，以及「站内链接」（根目录在网站内容目录里时才有）和「下载到本机」（任何时候都有，走插件接口把文件取回电脑）。
 
 几个要点：
 
-- **存哪里**：设置页「下载根目录」留空时存在 `wp-content/uploads/saw-github/`，下载完可以直接拿到链接写进文章；填 `/www/wwwroot/downloads` 这类绝对路径则存到站外，只显示服务器路径，不暴露给公网。
+- **存哪里**：设置页「下载根目录」留空时存在 `wp-content/uploads/saw-github/`。想换位置就填绝对路径，两种都支持：填在网站内容目录里（如 `/www/wwwroot/site/wp-content/downloads`）**照样给站内链接**；填到内容目录之外（如 `/www/wwwroot/downloads`）则不生成链接、不对外暴露，需要时用「下载到本机」取回。弹窗里有一行提示，会直接告诉你当前属于哪种。
 - **速度**：默认 3 个分片并发，共享主机建议 2–3，独立服务器可以 4–6。小于 8 MB 的文件自动按单连接下载，省掉合并开销。
 - **下不动**：内置直连 + ghfast.top + gh-proxy.com + ghproxy.net + gh.llkk.cc 五条线路，探测后选最快的一条，中途失败自动换下一条。全部不通时在设置页「下载线路」里填自己的镜像，一行一条，`{url}` 会被替换成真实地址。
 - **接口额度**：GitHub 匿名接口每小时 60 次，扫描几个仓库就用完。填一个只读 Token 可以提到 5000 次/小时，插件只用它读 Release 列表，不需要任何写权限。
@@ -121,6 +121,7 @@ sucaizy-ai-writer/
 │   ├── class-saw-generator.php# 抓取编排、HTML 解析、提示词、调用模型、JSON 解析
 │   ├── class-saw-quality.php  # 中文字数、断句收短、标点规范化、结构校验
 │   ├── class-saw-github.php   # Release 扫描、线路探测、分片下载与续传、合并
+│   ├── class-saw-github-ui.php# 下载按钮与弹窗（后台、前台共用一份）
 │   ├── class-saw-admin.php    # 后台页面、设置、AJAX、环境自检
 │   └── class-saw-frontend.php # 投稿页生成器、短代码
 ├── assets/                    # 后台与前端 CSS/JS

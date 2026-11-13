@@ -273,3 +273,21 @@
         max-height: calc(100vh - 88px);
     }
 }
+
+/* 「生成文章」和「下载 GitHub 内容」并排，窄屏自动换行 */
+.saw-front-generate-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.saw-gh-hint.is-front {
+    margin: 10px 0 0;
+    padding: 8px 12px;
+    background: #f4f7fb;
+    border-left: 3px solid #1677ff;
+    color: #4c545b;
+    font-size: 13px;
+    line-height: 1.7;
+}

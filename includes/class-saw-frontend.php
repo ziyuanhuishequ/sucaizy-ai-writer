@@ -10,6 +10,8 @@ if (!class_exists('SAW_Frontend', false)) {
         private $rendered_in_content = false;
         /** 页脚悬浮入口是否已经输出过。 */
         private $rendered_in_footer = false;
+        /** 下载弹窗是否已经输出过（一页只输出一个）。 */
+        private $modal_printed = false;
         private $generator;
 
         public function __construct($generator) {
@@ -17,6 +19,9 @@ if (!class_exists('SAW_Frontend', false)) {
             add_shortcode('sucaizy_ai_writer', array($this, 'render_shortcode'));
             add_action('wp_enqueue_scripts', array($this, 'enqueue_target_assets'));
             add_action('wp_footer', array($this, 'render_footer_generator'), 5);
+            // 弹窗放在页脚、紧跟在悬浮入口之后：固定定位不受主题容器影响，
+            // 短代码在正文中间时也不会被 overflow 裁掉。
+            add_action('wp_footer', array($this, 'render_download_modal'), 6);
         }
 
         private function is_target_page() {
@@ -53,7 +58,9 @@ if (!class_exists('SAW_Frontend', false)) {
 
         private function enqueue_assets() {
             wp_enqueue_style('saw-frontend', SAW_URL . 'assets/frontend.css', array(), SAW_VERSION);
+            wp_enqueue_style('saw-github', SAW_URL . 'assets/github.css', array(), SAW_VERSION);
             wp_enqueue_script('saw-frontend', SAW_URL . 'assets/frontend.js', array('jquery'), SAW_VERSION, true);
+            wp_enqueue_script('saw-github', SAW_URL . 'assets/github-download.js', array('jquery'), SAW_VERSION, true);
             wp_localize_script('saw-frontend', 'sawFrontend', array(
                 'ajaxUrl' => admin_url('admin-ajax.php'),
                 'nonce' => wp_create_nonce('saw_admin_nonce'),
@@ -62,6 +69,14 @@ if (!class_exists('SAW_Frontend', false)) {
                 'apiReady' => $this->generator->is_configuration_tested(),
                 'titleCount' => max(3, min(10, (int) get_option('saw_title_count', 5))),
             ));
+            // GitHub 下载弹窗与后台共用同一套脚本，配置单独注入，互不干扰。
+            if (class_exists('SAW_GitHub_UI')) {
+                wp_localize_script('saw-github', 'sawGh', array(
+                    'ajaxUrl' => admin_url('admin-ajax.php'),
+                    'nonce' => wp_create_nonce('saw_admin_nonce'),
+                    'gh' => SAW_GitHub_UI::config(),
+                ));
+            }
         }
 
         public function render_footer_generator() {
@@ -83,6 +98,23 @@ if (!class_exists('SAW_Frontend', false)) {
                 <?php echo $generator; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             </div>
             <?php
+        }
+
+        /**
+         * 下载弹窗。只在本次请求真的输出过写作面板时才输出，避免每个页面都带一份。
+         */
+        public function render_download_modal() {
+            if ($this->modal_printed) {
+                return;
+            }
+            if (!$this->rendered_in_content && !$this->rendered_in_footer) {
+                return;
+            }
+            if (!class_exists('SAW_GitHub_UI')) {
+                return;
+            }
+            $this->modal_printed = true;
+            echo SAW_GitHub_UI::modal(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         }
 
         /**
@@ -135,8 +167,20 @@ if (!class_exists('SAW_Frontend', false)) {
                         <input type="text" id="saw-front-notes" placeholder="例如：重点介绍离线功能">
                     </div>
                 </div>
-                <button type="button" class="saw-front-button" id="saw-front-generate"<?php disabled(!$this->generator->is_configuration_tested()); ?>>生成文章</button>
-                <span class="saw-front-loading" id="saw-front-loading" hidden>正在读取资料并生成<em id="saw-front-timer"></em></span>
+                <div class="saw-front-generate-row">
+                    <button type="button" class="saw-front-button" id="saw-front-generate"<?php disabled(!$this->generator->is_configuration_tested()); ?>>生成文章</button>
+                    <?php
+                    if (class_exists('SAW_GitHub_UI')) {
+                        echo SAW_GitHub_UI::button('front'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                    }
+                    ?>
+                    <span class="saw-front-loading" id="saw-front-loading" hidden>正在读取资料并生成<em id="saw-front-timer"></em></span>
+                </div>
+                <?php
+                if (class_exists('SAW_GitHub_UI')) {
+                    echo SAW_GitHub_UI::hint('front'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                }
+                ?>
                 <p class="saw-front-message" id="saw-front-message" role="status"></p>
                 <?php if (!$this->generator->is_configuration_tested()) : ?>
                     <p class="saw-front-message is-error">API 尚未测试通过，请先在后台<a href="<?php echo esc_url(admin_url('admin.php?page=sucaizy-ai-writer-settings')); ?>">接口设置</a>中完成测试。</p>

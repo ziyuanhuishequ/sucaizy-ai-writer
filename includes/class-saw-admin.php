@@ -29,6 +29,9 @@ if (!class_exists('SAW_Admin', false)) {
             add_action('wp_ajax_saw_gh_status', array($this, 'ajax_gh_status'));
             add_action('wp_ajax_saw_gh_abort', array($this, 'ajax_gh_abort'));
             add_action('wp_ajax_saw_gh_files', array($this, 'ajax_gh_files'));
+            // 把服务器上的文件读出来吐给浏览器：下载根目录在站外（没有公网链接）时，
+            // 靠这个入口把文件取回本机。
+            add_action('wp_ajax_saw_gh_file', array($this, 'ajax_gh_file'));
         }
 
         public function add_menu() {
@@ -227,8 +230,14 @@ if (!class_exists('SAW_Admin', false)) {
                 return;
             }
             wp_enqueue_style('saw-admin', SAW_URL . 'assets/admin.css', array(), SAW_VERSION);
+            wp_enqueue_style('saw-github', SAW_URL . 'assets/github.css', array(), SAW_VERSION);
             wp_enqueue_script('saw-admin', SAW_URL . 'assets/admin.js', array('jquery'), SAW_VERSION, true);
-            $gh_root = $this->github ? $this->github->root_dir() : '';
+            wp_enqueue_script('saw-github', SAW_URL . 'assets/github-download.js', array('jquery'), SAW_VERSION, true);
+            wp_localize_script('saw-github', 'sawGh', array(
+                'ajaxUrl' => admin_url('admin-ajax.php'),
+                'nonce' => wp_create_nonce('saw_admin_nonce'),
+                'gh' => SAW_GitHub_UI::config(),
+            ));
             wp_localize_script('saw-admin', 'sawAdmin', array(
                 'ajaxUrl' => admin_url('admin-ajax.php'),
                 'nonce' => wp_create_nonce('saw_admin_nonce'),
@@ -238,13 +247,6 @@ if (!class_exists('SAW_Admin', false)) {
                 'featureBand' => array(
                     'min' => max(20, min(60, (int) get_option('saw_feature_min', 35))),
                     'max' => max(24, min(70, (int) get_option('saw_feature_max', 45))),
-                ),
-                'gh' => array(
-                    'root' => $gh_root,
-                    'rootWritable' => $gh_root !== '' && is_dir($gh_root) && is_writable($gh_root),
-                    'maxMb' => $this->github ? (int) floor($this->github->max_bytes() / 1048576) : 512,
-                    'byOs' => 1,
-                    'parts' => max(1, min(8, (int) get_option('saw_gh_parts', 3))),
                 ),
             ));
         }
@@ -298,11 +300,11 @@ if (!class_exists('SAW_Admin', false)) {
                     </div>
                     <div class="saw-actions">
                         <button type="button" class="button button-primary" id="saw-generate">生成文章</button>
-                        <button type="button" class="button" id="saw-gh-open" hidden>下载 GitHub 内容</button>
+                        <?php echo SAW_GitHub_UI::button('admin'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                         <span class="spinner" id="saw-spinner"></span>
                         <span class="saw-timer" id="saw-timer" hidden></span>
                     </div>
-                    <p class="description saw-gh-hint" id="saw-gh-hint" hidden></p>
+                    <?php echo SAW_GitHub_UI::hint('admin'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                     <p class="description">按当前设置生成 <?php echo intval(get_option('saw_title_count', 5)); ?> 个备选标题，软件特点每条控制在 <?php echo intval($feature_min); ?>-<?php echo intval($feature_max); ?> 字。</p>
                     <p id="saw-message" role="status"></p>
                 </div>
@@ -339,50 +341,8 @@ if (!class_exists('SAW_Admin', false)) {
                     <p id="saw-save-message" role="status"></p>
                 </div>
 
-                <?php /* GitHub 下载弹窗：默认隐藏，输入框识别到仓库地址后由 admin.js 打开 */ ?>
-                <div class="saw-modal" id="saw-gh-modal" hidden>
-                    <div class="saw-modal-mask" data-saw-close="1"></div>
-                    <div class="saw-modal-box" role="dialog" aria-modal="true" aria-labelledby="saw-gh-title">
-                        <div class="saw-modal-head">
-                            <h2 id="saw-gh-title">下载 GitHub 内容</h2>
-                            <button type="button" class="button-link saw-modal-close" data-saw-close="1" aria-label="关闭">×</button>
-                        </div>
-                        <div class="saw-modal-body">
-                            <p class="saw-gh-repo" id="saw-gh-repo"></p>
-
-                            <div class="saw-inline saw-gh-toolbar">
-                                <label for="saw-gh-release">版本</label>
-                                <select id="saw-gh-release"></select>
-                                <label class="saw-gh-check"><input type="checkbox" id="saw-gh-latest-only" checked> 只看最新版</label>
-                                <button type="button" class="button button-small" id="saw-gh-select-all">全选</button>
-                                <button type="button" class="button button-small" id="saw-gh-select-none">清空</button>
-                            </div>
-
-                            <div class="saw-gh-assets" id="saw-gh-assets"></div>
-
-                            <div class="saw-gh-path">
-                                <div class="saw-gh-path-row">
-                                    <label for="saw-gh-subdir">保存到</label>
-                                    <div class="saw-gh-path-input">
-                                        <span class="saw-gh-root" id="saw-gh-root"></span>
-                                        <input type="text" id="saw-gh-subdir" placeholder="仓库名/版本号">
-                                    </div>
-                                </div>
-                                <label class="saw-gh-check"><input type="checkbox" id="saw-gh-by-os" checked> 按系统分子文件夹（Windows / macOS / Linux）</label>
-                                <p class="description" id="saw-gh-abs"></p>
-                            </div>
-
-                            <div class="saw-gh-progress" id="saw-gh-progress" hidden></div>
-                            <p id="saw-gh-message" role="status"></p>
-                        </div>
-                        <div class="saw-modal-foot">
-                            <button type="button" class="button button-primary" id="saw-gh-start" disabled>开始下载</button>
-                            <button type="button" class="button" data-saw-close="1">取消</button>
-                            <span class="spinner" id="saw-gh-spinner"></span>
-                            <button type="button" class="button-link saw-gh-refresh" id="saw-gh-refresh" hidden>重新扫描</button>
-                        </div>
-                    </div>
-                </div>
+                <?php /* 下载弹窗：默认隐藏，输入框识别到仓库地址后由 github-download.js 打开 */ ?>
+                <?php echo SAW_GitHub_UI::modal(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             </div>
             <?php
         }
@@ -566,8 +526,10 @@ if (!class_exists('SAW_Admin', false)) {
                             <td>
                                 <input type="text" id="saw_gh_root" name="saw_gh_root" value="<?php echo esc_attr(get_option('saw_gh_root', '')); ?>" class="regular-text code" placeholder="<?php echo esc_attr($this->default_gh_root()); ?>">
                                 <p class="description">
-                                    留空即用 <code><?php echo esc_html($this->default_gh_root()); ?></code>（在网站内容目录里，下载完可以直接拿到公网链接）。
-                                    填绝对路径（如 <code>/www/wwwroot/downloads</code>）则存到站外，只显示服务器路径，不给公网链接。
+                                    留空即用 <code><?php echo esc_html($this->default_gh_root()); ?></code>。<br>
+                                    想换地方就填绝对路径，两种都行：
+                                    <strong>在网站内容目录里</strong>（如 <code><?php echo esc_html(str_replace('\\', '/', WP_CONTENT_DIR)); ?>/downloads</code>）下载完直接给公网链接，能写进文章；
+                                    <strong>在内容目录之外</strong>（如 <code>/www/wwwroot/downloads</code>）只显示服务器路径，不对外暴露，需要时用「下载到本机」取回。
                                 </p>
                                 <?php $root_status = $this->gh_root_status(); ?>
                                 <p class="description"><?php echo wp_kses_post($root_status); ?></p>
@@ -1051,6 +1013,85 @@ if (!class_exists('SAW_Admin', false)) {
                 'dir' => $dir,
                 'files' => $github->list_dir($dir),
             ));
+        }
+
+        /**
+         * 把下载好的文件读出来发给浏览器。
+         *
+         * 下载根目录在网站内容目录之外时没有公网地址，「下载到本机」就走这里：
+         * 服务器按 1 MB 一块读、边读边输出，内存占用跟文件大小无关。
+         *
+         * 这里不能用 json_ok / json_fail（会把二进制流包成 JSON），所以权限和
+         * 失败都用 wp_die 直接结束。
+         */
+        public function ajax_gh_file() {
+            check_ajax_referer('saw_admin_nonce', 'nonce');
+            if (!current_user_can('manage_options')) {
+                wp_die('没有下载文件的权限。', '无权访问', array('response' => 403));
+            }
+            if (!$this->github || !class_exists('SAW_GitHub')) {
+                wp_die('GitHub 下载模块没有加载成功。', '模块缺失', array('response' => 500));
+            }
+
+            $job_id = isset($_REQUEST['job_id']) ? sanitize_key(wp_unslash($_REQUEST['job_id'])) : '';
+            $job = $this->github->load_job($job_id);
+            if ($job === null) {
+                wp_die('找不到这个下载任务，可能已经过期或被清理了。', '任务不存在', array('response' => 404));
+            }
+            if (isset($job['user']) && (int) $job['user'] !== (int) get_current_user_id()) {
+                wp_die('这个下载任务不属于当前账号。', '无权访问', array('response' => 403));
+            }
+
+            $path = isset($job['final']) ? (string) $job['final'] : '';
+            if ($path === '' || !is_file($path)) {
+                wp_die('文件还没下载完，或者已经被移动／删除了。', '文件不存在', array('response' => 404));
+            }
+
+            // 兜底：只允许读下载根目录里面的文件，任务数据被改过也读不到别处。
+            $root = realpath($this->github->root_dir());
+            $real = realpath($path);
+            if ($root === false || $real === false || strpos($real, rtrim($root, '/\\') . DIRECTORY_SEPARATOR) !== 0) {
+                wp_die('文件不在下载目录里，已拒绝。', '路径不合法', array('response' => 400));
+            }
+
+            $name = isset($_REQUEST['filename']) ? sanitize_file_name(wp_unslash($_REQUEST['filename'])) : '';
+            if ($name === '') {
+                $name = basename($real);
+            }
+
+            $size = @filesize($real);
+            nocache_headers();
+            while (ob_get_level() > 0) {
+                @ob_end_clean();
+            }
+            @set_time_limit(0);
+            @ini_set('zlib.output_compression', 'Off');
+
+            header('Content-Type: application/octet-stream');
+            header('Content-Disposition: attachment; filename="' . str_replace('"', '', $name) . '"; filename*=UTF-8\'\'' . rawurlencode($name));
+            header('X-Content-Type-Options: nosniff');
+            header('Content-Transfer-Encoding: binary');
+            if ($size !== false) {
+                header('Content-Length: ' . (int) $size);
+            }
+
+            $handle = @fopen($real, 'rb');
+            if (!$handle) {
+                wp_die('文件打不开，请检查目录权限。', '读取失败', array('response' => 500));
+            }
+            while (!feof($handle)) {
+                $chunk = fread($handle, 1048576);
+                if ($chunk === false) {
+                    break;
+                }
+                echo $chunk; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                flush();
+                if (connection_aborted()) {
+                    break;
+                }
+            }
+            fclose($handle);
+            exit;
         }
     }
 }
