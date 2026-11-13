@@ -57,10 +57,10 @@ if (!class_exists('SAW_Frontend', false)) {
         }
 
         private function enqueue_assets() {
-            wp_enqueue_style('saw-frontend', SAW_URL . 'assets/frontend.css', array(), SAW_VERSION);
-            wp_enqueue_style('saw-github', SAW_URL . 'assets/github.css', array(), SAW_VERSION);
-            wp_enqueue_script('saw-frontend', SAW_URL . 'assets/frontend.js', array('jquery'), SAW_VERSION, true);
-            wp_enqueue_script('saw-github', SAW_URL . 'assets/github-download.js', array('jquery'), SAW_VERSION, true);
+            wp_enqueue_style('saw-frontend', SAW_URL . 'assets/frontend.css', array(), saw_asset_ver('assets/frontend.css'));
+            wp_enqueue_style('saw-github', SAW_URL . 'assets/github.css', array(), saw_asset_ver('assets/github.css'));
+            wp_enqueue_script('saw-frontend', SAW_URL . 'assets/frontend.js', array('jquery'), saw_asset_ver('assets/frontend.js'), true);
+            wp_enqueue_script('saw-github', SAW_URL . 'assets/github-download.js', array('jquery'), saw_asset_ver('assets/github-download.js'), true);
             wp_localize_script('saw-frontend', 'sawFrontend', array(
                 'ajaxUrl' => admin_url('admin-ajax.php'),
                 'nonce' => wp_create_nonce('saw_admin_nonce'),

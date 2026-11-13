@@ -231,10 +231,10 @@ if (!class_exists('SAW_Admin', false)) {
             if (strpos($hook, 'sucaizy-ai-writer') === false) {
                 return;
             }
-            wp_enqueue_style('saw-admin', SAW_URL . 'assets/admin.css', array(), SAW_VERSION);
-            wp_enqueue_style('saw-github', SAW_URL . 'assets/github.css', array(), SAW_VERSION);
-            wp_enqueue_script('saw-admin', SAW_URL . 'assets/admin.js', array('jquery'), SAW_VERSION, true);
-            wp_enqueue_script('saw-github', SAW_URL . 'assets/github-download.js', array('jquery'), SAW_VERSION, true);
+            wp_enqueue_style('saw-admin', SAW_URL . 'assets/admin.css', array(), saw_asset_ver('assets/admin.css'));
+            wp_enqueue_style('saw-github', SAW_URL . 'assets/github.css', array(), saw_asset_ver('assets/github.css'));
+            wp_enqueue_script('saw-admin', SAW_URL . 'assets/admin.js', array('jquery'), saw_asset_ver('assets/admin.js'), true);
+            wp_enqueue_script('saw-github', SAW_URL . 'assets/github-download.js', array('jquery'), saw_asset_ver('assets/github-download.js'), true);
             wp_localize_script('saw-github', 'sawGh', array(
                 'ajaxUrl' => admin_url('admin-ajax.php'),
                 'nonce' => wp_create_nonce('saw_admin_nonce'),

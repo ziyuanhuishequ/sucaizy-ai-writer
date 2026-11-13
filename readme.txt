@@ -4,7 +4,7 @@ Tags: ai writing, resource article, openai, github, release download
 Requires at least: 6.4
 Tested up to: 6.4.3
 Requires PHP: 7.2
-Stable tag: 1.8.0
+Stable tag: 1.8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -79,6 +79,9 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 * 从 1.5.0 升级时，如果写作 Skill 仍是 1.5.0 的内置默认内容，插件会自动改用 1.6.0 的新默认规范；自己改过的 Skill 不会被覆盖。
 
 == Changelog ==
+
+= 1.8.1 =
+* 修复同一版本内更新 js/css 后浏览器继续用旧缓存的问题：静态资源地址带上文件修改时间，改完立即生效。
 
 = 1.8.0 =
 * 下载位置改成可以选，默认「本机电脑」：文件直接存到浏览器的下载文件夹，服务器不写硬盘、不占空间，也不再受单文件上限限制。

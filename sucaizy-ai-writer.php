@@ -3,7 +3,7 @@
  * Plugin Name: 素材资源网 AI 文章写作
  * Plugin URI: https://www.sucaizy.com/
  * Description: 输入项目链接、软件名称或素材名称，按素材资源网写作规范自动生成中文文章并保存为草稿；识别到 GitHub 地址时可把 Release 安装包分片下载到指定目录。并发抓取资料与网上已有的同类介绍，标题 43-67 字，简介写成真人推荐口吻，标题与特点字数自动校验，并显示每次生成的 token 用量与估算费用。
- * Version: 1.8.0
+ * Version: 1.8.1
  * Author: Sucaizy
  * Author URI: https://www.sucaizy.com/
  * Requires at least: 6.4
@@ -61,11 +61,24 @@ if (defined('SAW_VERSION')) {
     return;
 }
 
-define('SAW_VERSION', '1.8.0');
+define('SAW_VERSION', '1.8.1');
 define('SAW_FILE', __FILE__);
 define('SAW_DIR', plugin_dir_path(__FILE__));
 define('SAW_URL', plugin_dir_url(__FILE__));
 define('SAW_OPTION_VERSION', 'saw_plugin_version');
+
+/**
+ * 静态资源的版本串。
+ *
+ * 只用 SAW_VERSION 的话，同一版本里改了 js/css（打补丁、热修）地址不变，
+ * 浏览器会继续用缓存，页面上还是旧逻辑，看起来像"改了没生效"。把文件修改
+ * 时间拼进去，文件一变地址就变。
+ */
+function saw_asset_ver($relative) {
+    $path = SAW_DIR . ltrim((string) $relative, '/');
+    $stamp = is_readable($path) ? filemtime($path) : 0;
+    return $stamp ? SAW_VERSION . '.' . $stamp : SAW_VERSION;
+}
 
 /*
  * 载入顺序：类文件互相依赖，http -> quality -> generator -> admin -> frontend。
