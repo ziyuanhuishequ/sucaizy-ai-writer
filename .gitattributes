@@ -18,3 +18,8 @@
 readme.txt linguist-documentation
 README.md  linguist-documentation
 CHANGELOG.md linguist-documentation
+
+# 发布包（git archive）里不要塞仓库自己的配置文件
+.gitignore      export-ignore
+.gitattributes  export-ignore
+.github/        export-ignore

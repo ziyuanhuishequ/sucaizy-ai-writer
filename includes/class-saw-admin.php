@@ -7,9 +7,11 @@ if (!defined('ABSPATH')) {
 if (!class_exists('SAW_Admin', false)) {
     class SAW_Admin {
         private $generator;
+        private $github;
 
         public function __construct($generator) {
             $this->generator = $generator;
+            $this->github = class_exists('SAW_GitHub') ? new SAW_GitHub() : null;
             add_action('admin_menu', array($this, 'add_menu'));
             add_action('admin_init', array($this, 'register_settings'));
             add_action('admin_enqueue_scripts', array($this, 'enqueue_assets'));
@@ -18,6 +20,15 @@ if (!class_exists('SAW_Admin', false)) {
             add_action('wp_ajax_saw_save_draft', array($this, 'ajax_save_draft'));
             add_action('wp_ajax_saw_test_api', array($this, 'ajax_test_api'));
             add_action('wp_ajax_saw_clear_cache', array($this, 'ajax_clear_cache'));
+            // GitHub Release 下载：扫描 → 准备 → 分片 → 合并，四步都是独立请求，
+            // 避免单个请求超时把大文件卡死。
+            add_action('wp_ajax_saw_gh_scan', array($this, 'ajax_gh_scan'));
+            add_action('wp_ajax_saw_gh_prepare', array($this, 'ajax_gh_prepare'));
+            add_action('wp_ajax_saw_gh_part', array($this, 'ajax_gh_part'));
+            add_action('wp_ajax_saw_gh_finish', array($this, 'ajax_gh_finish'));
+            add_action('wp_ajax_saw_gh_status', array($this, 'ajax_gh_status'));
+            add_action('wp_ajax_saw_gh_abort', array($this, 'ajax_gh_abort'));
+            add_action('wp_ajax_saw_gh_files', array($this, 'ajax_gh_files'));
         }
 
         public function add_menu() {
@@ -65,6 +76,12 @@ if (!class_exists('SAW_Admin', false)) {
             register_setting('saw_settings', 'saw_frontend_slug', array('sanitize_callback' => 'sanitize_title', 'default' => 'newposts-2'));
             register_setting('saw_settings', 'saw_title_selector', array('sanitize_callback' => array($this, 'sanitize_selector'), 'default' => ''));
             register_setting('saw_settings', 'saw_content_selector', array('sanitize_callback' => array($this, 'sanitize_selector'), 'default' => ''));
+            register_setting('saw_settings', 'saw_gh_root', array('sanitize_callback' => array($this, 'sanitize_gh_root'), 'default' => ''));
+            register_setting('saw_settings', 'saw_github_token', array('sanitize_callback' => array($this, 'sanitize_github_token'), 'default' => ''));
+            register_setting('saw_settings', 'saw_github_routes', array('sanitize_callback' => array($this, 'sanitize_gh_routes'), 'default' => ''));
+            register_setting('saw_settings', 'saw_gh_parts', array('sanitize_callback' => array($this, 'sanitize_gh_parts'), 'default' => 3));
+            register_setting('saw_settings', 'saw_gh_max_mb', array('sanitize_callback' => array($this, 'sanitize_gh_max_mb'), 'default' => 512));
+            register_setting('saw_settings', 'saw_gh_timeout', array('sanitize_callback' => array($this, 'sanitize_gh_timeout'), 'default' => 45));
             register_setting('saw_skill_settings', 'saw_writing_skill', array('sanitize_callback' => array($this, 'sanitize_writing_skill'), 'default' => ''));
         }
 
@@ -115,12 +132,103 @@ if (!class_exists('SAW_Admin', false)) {
             return substr($value, 0, 60000);
         }
 
+        /**
+         * 下载根目录。
+         *
+         * 允许留空（用 wp-content/uploads/saw-github），允许绝对路径（/www/wwwroot/dl），
+         * 也允许相对 WordPress 根目录的写法（downloads）。这里只做格式净化，
+         * 真正能不能写要在保存页上提示，不能因为不可写就静默丢弃用户填的值。
+         */
+        public function sanitize_gh_root($value) {
+            $value = str_replace('\\', '/', trim((string) wp_unslash($value)));
+            $value = preg_replace('/[\x00-\x1F\x7F]/', '', $value);
+            if (!is_string($value)) {
+                return '';
+            }
+            $value = preg_replace('#/+#', '/', $value);
+            if (!is_string($value) || $value === '') {
+                return '';
+            }
+
+            $prefix = '';
+            $rest = $value;
+            if (preg_match('#^([A-Za-z]):/?#', $value, $matches)) {
+                // Windows 盘符路径：保留 D:/ 前缀。
+                $prefix = strtoupper($matches[1]) . ':/';
+                $rest = ltrim(substr($value, strlen($matches[0])), '/');
+            } elseif (strpos($value, '/') === 0) {
+                $prefix = '/';
+                $rest = ltrim($value, '/');
+            }
+
+            // 逐段去掉空段、. 和 ..，不允许跳出给定位置。
+            $segments = array();
+            foreach (explode('/', $rest) as $segment) {
+                if ($segment === '' || $segment === '.') {
+                    continue;
+                }
+                if ($segment === '..') {
+                    continue;
+                }
+                $segments[] = $segment;
+            }
+            if (empty($segments)) {
+                return $prefix === '/' ? '' : rtrim($prefix, '/');
+            }
+            return rtrim($prefix . implode('/', $segments), '/');
+        }
+
+        public function sanitize_github_token($value) {
+            $value = trim((string) wp_unslash($value));
+            return preg_replace('/[^A-Za-z0-9_\-.]/', '', $value);
+        }
+
+        /**
+         * 下载线路。一行一条，支持 https://镜像/{url} 的写法；
+         * 明文 http 一律丢弃（镜像能篡改内容，不能留这个口子）。
+         */
+        public function sanitize_gh_routes($value) {
+            $value = str_replace(array("\r\n", "\r"), "\n", (string) wp_unslash($value));
+            $lines = explode("\n", $value);
+            $routes = array();
+            foreach ($lines as $line) {
+                $line = trim($line);
+                if ($line === '' || strpos($line, '#') === 0) {
+                    continue;
+                }
+                if (stripos($line, 'http://') === 0) {
+                    continue;
+                }
+                if (!preg_match('#^https://#i', $line) && strpos($line, '{url}') !== false) {
+                    $line = 'https://' . $line;
+                }
+                $routes[] = preg_replace('/[\x00-\x1F\x7F\s]/', '', $line);
+                if (count($routes) >= 12) {
+                    break;
+                }
+            }
+            return implode("\n", array_values(array_unique($routes)));
+        }
+
+        public function sanitize_gh_parts($value) {
+            return max(1, min(8, (int) $value));
+        }
+
+        public function sanitize_gh_max_mb($value) {
+            return max(1, min(4096, (int) $value));
+        }
+
+        public function sanitize_gh_timeout($value) {
+            return max(15, min(180, (int) $value));
+        }
+
         public function enqueue_assets($hook) {
             if (strpos($hook, 'sucaizy-ai-writer') === false) {
                 return;
             }
             wp_enqueue_style('saw-admin', SAW_URL . 'assets/admin.css', array(), SAW_VERSION);
             wp_enqueue_script('saw-admin', SAW_URL . 'assets/admin.js', array('jquery'), SAW_VERSION, true);
+            $gh_root = $this->github ? $this->github->root_dir() : '';
             wp_localize_script('saw-admin', 'sawAdmin', array(
                 'ajaxUrl' => admin_url('admin-ajax.php'),
                 'nonce' => wp_create_nonce('saw_admin_nonce'),
@@ -130,6 +238,13 @@ if (!class_exists('SAW_Admin', false)) {
                 'featureBand' => array(
                     'min' => max(20, min(60, (int) get_option('saw_feature_min', 35))),
                     'max' => max(24, min(70, (int) get_option('saw_feature_max', 45))),
+                ),
+                'gh' => array(
+                    'root' => $gh_root,
+                    'rootWritable' => $gh_root !== '' && is_dir($gh_root) && is_writable($gh_root),
+                    'maxMb' => $this->github ? (int) floor($this->github->max_bytes() / 1048576) : 512,
+                    'byOs' => 1,
+                    'parts' => max(1, min(8, (int) get_option('saw_gh_parts', 3))),
                 ),
             ));
         }
@@ -183,9 +298,11 @@ if (!class_exists('SAW_Admin', false)) {
                     </div>
                     <div class="saw-actions">
                         <button type="button" class="button button-primary" id="saw-generate">生成文章</button>
+                        <button type="button" class="button" id="saw-gh-open" hidden>下载 GitHub 内容</button>
                         <span class="spinner" id="saw-spinner"></span>
                         <span class="saw-timer" id="saw-timer" hidden></span>
                     </div>
+                    <p class="description saw-gh-hint" id="saw-gh-hint" hidden></p>
                     <p class="description">按当前设置生成 <?php echo intval(get_option('saw_title_count', 5)); ?> 个备选标题，软件特点每条控制在 <?php echo intval($feature_min); ?>-<?php echo intval($feature_max); ?> 字。</p>
                     <p id="saw-message" role="status"></p>
                 </div>
@@ -220,6 +337,51 @@ if (!class_exists('SAW_Admin', false)) {
                         <span class="spinner" id="saw-save-spinner"></span>
                     </div>
                     <p id="saw-save-message" role="status"></p>
+                </div>
+
+                <?php /* GitHub 下载弹窗：默认隐藏，输入框识别到仓库地址后由 admin.js 打开 */ ?>
+                <div class="saw-modal" id="saw-gh-modal" hidden>
+                    <div class="saw-modal-mask" data-saw-close="1"></div>
+                    <div class="saw-modal-box" role="dialog" aria-modal="true" aria-labelledby="saw-gh-title">
+                        <div class="saw-modal-head">
+                            <h2 id="saw-gh-title">下载 GitHub 内容</h2>
+                            <button type="button" class="button-link saw-modal-close" data-saw-close="1" aria-label="关闭">×</button>
+                        </div>
+                        <div class="saw-modal-body">
+                            <p class="saw-gh-repo" id="saw-gh-repo"></p>
+
+                            <div class="saw-inline saw-gh-toolbar">
+                                <label for="saw-gh-release">版本</label>
+                                <select id="saw-gh-release"></select>
+                                <label class="saw-gh-check"><input type="checkbox" id="saw-gh-latest-only" checked> 只看最新版</label>
+                                <button type="button" class="button button-small" id="saw-gh-select-all">全选</button>
+                                <button type="button" class="button button-small" id="saw-gh-select-none">清空</button>
+                            </div>
+
+                            <div class="saw-gh-assets" id="saw-gh-assets"></div>
+
+                            <div class="saw-gh-path">
+                                <div class="saw-gh-path-row">
+                                    <label for="saw-gh-subdir">保存到</label>
+                                    <div class="saw-gh-path-input">
+                                        <span class="saw-gh-root" id="saw-gh-root"></span>
+                                        <input type="text" id="saw-gh-subdir" placeholder="仓库名/版本号">
+                                    </div>
+                                </div>
+                                <label class="saw-gh-check"><input type="checkbox" id="saw-gh-by-os" checked> 按系统分子文件夹（Windows / macOS / Linux）</label>
+                                <p class="description" id="saw-gh-abs"></p>
+                            </div>
+
+                            <div class="saw-gh-progress" id="saw-gh-progress" hidden></div>
+                            <p id="saw-gh-message" role="status"></p>
+                        </div>
+                        <div class="saw-modal-foot">
+                            <button type="button" class="button button-primary" id="saw-gh-start" disabled>开始下载</button>
+                            <button type="button" class="button" data-saw-close="1">取消</button>
+                            <span class="spinner" id="saw-gh-spinner"></span>
+                            <button type="button" class="button-link saw-gh-refresh" id="saw-gh-refresh" hidden>重新扫描</button>
+                        </div>
+                    </div>
                 </div>
             </div>
             <?php
@@ -271,6 +433,33 @@ if (!class_exists('SAW_Admin', false)) {
             );
 
             return $rows;
+        }
+
+        public function default_gh_root() {
+            return str_replace('\\', '/', WP_CONTENT_DIR) . '/uploads/saw-github';
+        }
+
+        /**
+         * 下载目录的可用状态。目录不存在不算错（第一次下载会自动建），
+         * 但明确写出来，免得用户点下载才发现没权限。
+         */
+        public function gh_root_status() {
+            $root = $this->github ? $this->github->root_dir() : $this->default_gh_root();
+            if (!is_dir($root)) {
+                return '<span class="saw-error">目录还不存在</span>：第一次下载时会自动创建。如果站点目录不可写，请先手动建好 <code>' . esc_html($root) . '</code> 并给写权限。';
+            }
+            if (!is_writable($root)) {
+                return '<span class="saw-error">目录不可写</span>：<code>' . esc_html($root) . '</code>。请把属主改成运行 PHP 的用户，或给 755 以上权限。';
+            }
+            $text = '<span class="saw-success">目录可写</span>：<code>' . esc_html($root) . '</code>';
+            $free = @disk_free_space($root);
+            if ($free) {
+                $free_text = class_exists('SAW_GitHub')
+                    ? SAW_GitHub::human_size($free)
+                    : (function_exists('size_format') ? size_format($free) : round($free / 1048576) . ' MB');
+                $text .= '，剩余 ' . esc_html($free_text);
+            }
+            return $text;
         }
 
         public function render_settings() {
@@ -369,6 +558,59 @@ if (!class_exists('SAW_Admin', false)) {
                             <td><input type="text" id="saw_content_selector" name="saw_content_selector" value="<?php echo esc_attr(get_option('saw_content_selector', '')); ?>" class="regular-text" placeholder="例如：#post_content"><p class="description">支持 textarea、TinyMCE 和 contenteditable 编辑器。</p></td>
                         </tr>
                     </table>
+
+                    <h2>GitHub 下载</h2>
+                    <table class="form-table" role="presentation">
+                        <tr>
+                            <th scope="row"><label for="saw_gh_root">下载根目录</label></th>
+                            <td>
+                                <input type="text" id="saw_gh_root" name="saw_gh_root" value="<?php echo esc_attr(get_option('saw_gh_root', '')); ?>" class="regular-text code" placeholder="<?php echo esc_attr($this->default_gh_root()); ?>">
+                                <p class="description">
+                                    留空即用 <code><?php echo esc_html($this->default_gh_root()); ?></code>（在网站内容目录里，下载完可以直接拿到公网链接）。
+                                    填绝对路径（如 <code>/www/wwwroot/downloads</code>）则存到站外，只显示服务器路径，不给公网链接。
+                                </p>
+                                <?php $root_status = $this->gh_root_status(); ?>
+                                <p class="description"><?php echo wp_kses_post($root_status); ?></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="saw_github_token">GitHub Token</label></th>
+                            <td>
+                                <input type="password" id="saw_github_token" name="saw_github_token" value="<?php echo esc_attr(get_option('saw_github_token', '')); ?>" class="regular-text" autocomplete="new-password">
+                                <p class="description">
+                                    可选。不填也能用，但 GitHub 接口匿名额度只有每小时 60 次，扫描几个仓库就会用完。
+                                    填一个只勾选 <code>public_repo</code>（或 Fine-grained 的 Public repositories 只读）的 Token 即可提到每小时 5000 次。
+                                    不需要任何写权限，插件只用它读 Release 列表。
+                                </p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><label for="saw_github_routes">下载线路</label></th>
+                            <td>
+                                <textarea id="saw_github_routes" name="saw_github_routes" rows="6" class="large-text code" placeholder="留空使用内置线路"><?php echo esc_textarea(get_option('saw_github_routes', '')); ?></textarea>
+                                <p class="description">
+                                    一行一条，<code>{url}</code> 会被替换成真实的 GitHub 下载地址，例如 <code>https://ghfast.top/{url}</code>。
+                                    留空时依次尝试：直连、ghfast.top、gh-proxy.com、ghproxy.net、gh.llkk.cc。
+                                    哪条先返回就用哪条，中途失败会自动换下一条，不需要手动干预。只接受 https。
+                                </p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">下载参数</th>
+                            <td>
+                                <label>分片数 <input type="number" name="saw_gh_parts" min="1" max="8" step="1" value="<?php echo esc_attr(get_option('saw_gh_parts', 3)); ?>" class="small-text"></label>
+                                &nbsp;&nbsp;
+                                <label>单文件上限 <input type="number" name="saw_gh_max_mb" min="1" max="4096" step="1" value="<?php echo esc_attr(get_option('saw_gh_max_mb', 512)); ?>" class="small-text"> MB</label>
+                                &nbsp;&nbsp;
+                                <label>单片超时 <input type="number" name="saw_gh_timeout" min="15" max="180" step="5" value="<?php echo esc_attr(get_option('saw_gh_timeout', 45)); ?>" class="small-text"> 秒</label>
+                                <p class="description">
+                                    分片数越多越快，但要求主机的 PHP 能同时处理多个请求。共享主机建议 2-3，独立服务器可以 4-6。
+                                    小于 8 MB 的文件会自动按单连接下载。
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+
                     <p class="submit saw-api-actions">
                         <button type="button" class="button button-secondary" id="saw-test-api">测试 API 连接</button>
                         <button type="submit" class="button button-primary">保存设置</button>
@@ -566,6 +808,248 @@ if (!class_exists('SAW_Admin', false)) {
                 'message' => '草稿已保存。',
                 'edit_url' => get_edit_post_link($post_id, 'raw'),
                 'post_id' => $post_id,
+            ));
+        }
+
+        /* ---------------------------------------------------------------------
+         * AJAX：GitHub Release 下载
+         *
+         * 分四步而不是一步：扫描（列表）→ 准备（探测线路+建目录）→ 分片（反复调用）
+         * → 合并（校验大小）。每一步都是独立的小请求，任何一步失败都能单独重试，
+         * 不会出现“下到 80% 因为一个请求超时全部白干”。
+         * ------------------------------------------------------------------ */
+
+        private function require_github() {
+            if (!$this->github || !class_exists('SAW_GitHub')) {
+                $this->json_fail('GitHub 下载模块没有加载成功。请重新上传完整安装包（缺少 includes/class-saw-github.php）。', 500);
+            }
+            return $this->github;
+        }
+
+        private function load_owned_job($job_id) {
+            $job = $this->github->load_job($job_id);
+            if ($job === null) {
+                $this->json_fail('找不到这个下载任务，可能已经过期或被清理了。', 404);
+            }
+            // 只允许操作自己创建的任务，避免多管理员之间互相干扰。
+            if (isset($job['user']) && (int) $job['user'] !== (int) get_current_user_id()) {
+                $this->json_fail('这个下载任务不属于当前账号。', 403);
+            }
+            return $job;
+        }
+
+        /**
+         * 扫描仓库的 Release 列表。
+         */
+        public function ajax_gh_scan() {
+            $this->begin_json();
+            check_ajax_referer('saw_admin_nonce', 'nonce');
+            if (!current_user_can('manage_options')) {
+                $this->json_fail('没有下载文件的权限。', 403);
+            }
+            $github = $this->require_github();
+
+            // 扫描是低频操作，顺手清理超过一天没下完的任务和几天前已完成的任务记录，
+            // 免得 .saw-jobs 目录一直堆着。
+            $github->cleanup_stale();
+
+            $input = isset($_POST['input']) ? sanitize_textarea_field(wp_unslash($_POST['input'])) : '';
+            $target = SAW_GitHub::parse_repo($input);
+            if (is_wp_error($target)) {
+                $this->json_fail($target->get_error_message());
+            }
+
+            $cache_key = 'saw_gh_scan_' . md5($target['owner'] . '/' . $target['repo']);
+            $cached = get_transient($cache_key);
+            if (is_array($cached) && !empty($cached['releases'])) {
+                $result = $cached;
+                $result['cached'] = true;
+            } else {
+                $result = $github->list_releases($target['owner'], $target['repo'], 12);
+                if (is_wp_error($result)) {
+                    $this->json_fail($result->get_error_message());
+                }
+                $result['cached'] = false;
+                // 缓存 5 分钟，避免反复点按钮把 GitHub 匿名额度耗光。
+                set_transient($cache_key, $result, 300);
+            }
+
+            $root = $github->root_dir();
+            $this->json_ok(array(
+                'repo' => $result['full_name'],
+                'owner' => $result['owner'],
+                'repo_name' => $result['repo'],
+                'releases' => $result['releases'],
+                'target_tag' => $target['tag'],
+                'target_asset' => $target['asset'],
+                'root' => $root,
+                'root_ready' => is_dir($root) && is_writable($root),
+                'default_root' => $this->default_gh_root(),
+                'max_mb' => (int) floor($github->max_bytes() / 1048576),
+                'cached' => !empty($result['cached']),
+            ));
+        }
+
+        /**
+         * 准备一个文件的下载任务。
+         */
+        public function ajax_gh_prepare() {
+            $this->begin_json();
+            check_ajax_referer('saw_admin_nonce', 'nonce');
+            if (!current_user_can('manage_options')) {
+                $this->json_fail('没有下载文件的权限。', 403);
+            }
+            $github = $this->require_github();
+
+            $url = isset($_POST['url']) ? esc_url_raw(wp_unslash($_POST['url'])) : '';
+            $filename = isset($_POST['filename']) ? sanitize_file_name(wp_unslash($_POST['filename'])) : '';
+            $subdir = isset($_POST['subdir']) ? sanitize_text_field(wp_unslash($_POST['subdir'])) : '';
+            $size = isset($_POST['size']) ? absint($_POST['size']) : 0;
+            if ($url === '' || $filename === '') {
+                $this->json_fail('缺少文件地址或文件名。');
+            }
+
+            $result = $github->prepare($url, $filename, $size, $subdir, 0);
+            if (is_wp_error($result)) {
+                $this->json_fail($result->get_error_message());
+            }
+
+            $job = $result['job'];
+            $this->json_ok(array(
+                'job_id' => $job['id'],
+                'filename' => $job['filename'],
+                'size' => $job['size'],
+                'size_text' => SAW_GitHub::human_size($job['size']),
+                'parts' => $job['parts'],
+                'range' => $job['range'],
+                'route' => $job['route_label'],
+                'dir' => $result['dir'],
+                'url' => $result['url'],
+                'root' => $result['root'],
+            ));
+        }
+
+        /**
+         * 下载一个分片。前端会反复调用，直到所有分片都到齐。
+         */
+        public function ajax_gh_part() {
+            $this->begin_json();
+            check_ajax_referer('saw_admin_nonce', 'nonce');
+            if (!current_user_can('manage_options')) {
+                $this->json_fail('没有下载文件的权限。', 403);
+            }
+            $github = $this->require_github();
+
+            $job = $this->load_owned_job(isset($_POST['job_id']) ? sanitize_key($_POST['job_id']) : '');
+            $index = isset($_POST['index']) ? absint($_POST['index']) : 0;
+
+            $result = $github->fetch_part($job, $index);
+            if (is_wp_error($result)) {
+                $this->json_fail($result->get_error_message());
+            }
+            $progress = $github->job_progress($job);
+            $this->json_ok(array(
+                'index' => $result['index'],
+                'received' => $result['received'],
+                'length' => $result['length'],
+                'done' => !empty($result['done']),
+                'speed' => isset($result['speed']) ? (int) $result['speed'] : 0,
+                'route' => isset($result['route']) ? $result['route'] : '',
+                'progress' => $progress,
+            ));
+        }
+
+        /**
+         * 合并分片，落成最终文件。
+         */
+        public function ajax_gh_finish() {
+            $this->begin_json();
+            check_ajax_referer('saw_admin_nonce', 'nonce');
+            if (!current_user_can('manage_options')) {
+                $this->json_fail('没有下载文件的权限。', 403);
+            }
+            $github = $this->require_github();
+
+            $job = $this->load_owned_job(isset($_POST['job_id']) ? sanitize_key($_POST['job_id']) : '');
+            $result = $github->merge($job);
+            if (is_wp_error($result)) {
+                $this->json_fail($result->get_error_message());
+            }
+            $this->json_ok($result);
+        }
+
+        /**
+         * 查询进度（断点续传、页面刷新后恢复用）。
+         */
+        public function ajax_gh_status() {
+            $this->begin_json();
+            check_ajax_referer('saw_admin_nonce', 'nonce');
+            if (!current_user_can('manage_options')) {
+                $this->json_fail('没有下载文件的权限。', 403);
+            }
+            $github = $this->require_github();
+
+            $job_id = isset($_POST['job_id']) ? sanitize_key($_POST['job_id']) : '';
+            if ($job_id !== '') {
+                $job = $this->load_owned_job($job_id);
+                $this->json_ok(array(
+                    'job' => array(
+                        'id' => $job['id'],
+                        'filename' => $job['filename'],
+                        'status' => $job['status'],
+                        'dir' => $job['dir'],
+                        'final' => $job['final'],
+                        'url' => $github->public_url($job['final']),
+                    ),
+                    'progress' => $github->job_progress($job),
+                ));
+            }
+
+            $jobs = array();
+            foreach ($github->all_jobs() as $job) {
+                if (isset($job['user']) && (int) $job['user'] !== (int) get_current_user_id()) {
+                    continue;
+                }
+                $jobs[] = array(
+                    'id' => $job['id'],
+                    'filename' => $job['filename'],
+                    'status' => $job['status'],
+                    'dir' => $job['dir'],
+                    'progress' => $job['progress'],
+                );
+            }
+            $this->json_ok(array('jobs' => $jobs));
+        }
+
+        public function ajax_gh_abort() {
+            $this->begin_json();
+            check_ajax_referer('saw_admin_nonce', 'nonce');
+            if (!current_user_can('manage_options')) {
+                $this->json_fail('没有下载文件的权限。', 403);
+            }
+            $github = $this->require_github();
+            $job = $this->load_owned_job(isset($_POST['job_id']) ? sanitize_key($_POST['job_id']) : '');
+            $github->abort($job);
+            $this->json_ok(array('message' => '已取消并删除未完成的分片。'));
+        }
+
+        /**
+         * 列出下载目录里已有的文件。
+         */
+        public function ajax_gh_files() {
+            $this->begin_json();
+            check_ajax_referer('saw_admin_nonce', 'nonce');
+            if (!current_user_can('manage_options')) {
+                $this->json_fail('没有查看文件的权限。', 403);
+            }
+            $github = $this->require_github();
+            $dir = isset($_POST['dir']) ? sanitize_text_field(wp_unslash($_POST['dir'])) : '';
+            if ($dir === '') {
+                $dir = $github->root_dir();
+            }
+            $this->json_ok(array(
+                'dir' => $dir,
+                'files' => $github->list_dir($dir),
             ));
         }
     }

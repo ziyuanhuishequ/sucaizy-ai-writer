@@ -35,6 +35,25 @@
 | 前端投稿 | 在投稿页生成并写入普通表单、TinyMCE 或 contenteditable 编辑器；也可用短代码 `[sucaizy_ai_writer]` 嵌到任意页面 |
 | 接口兼容 | OpenAI Responses API 与常见 OpenAI 兼容 Chat Completions 接口；DeepSeek 默认关闭思考模式省费用 |
 | 环境自检 | 设置页直接列出 PHP 版本、json/openssl/mbstring/curl/dom 扩展状态和脚本超时 |
+| GitHub 下载 | 识别到仓库地址后，可把 Release 安装包分片下载到服务器指定目录：多版本、按系统归档、多线路自动换线、断点续传，完成后给出站内链接 |
+
+## 截图
+
+在输入框贴上 GitHub 地址，「生成文章」右边会多出一个「下载 GitHub 内容」：
+
+![识别到 GitHub 地址后出现的下载入口](screenshots/generator-button.png)
+
+点开是 Release 列表，按系统分好类，勾选后填一个子目录，就能看到文件最终落在服务器上的完整路径：
+
+![下载弹窗：版本、资产、保存路径](screenshots/download-modal.png)
+
+下载是分片的，中断后重新点一次会接着下，不会从头开始：
+
+![下载进度：分片并发与断点续传](screenshots/download-progress.png)
+
+下载根目录、Token、备用线路、分片数都在设置页的「GitHub 下载」里：
+
+![设置页的 GitHub 下载区块](screenshots/settings-github.png)
 
 ## 环境要求
 
@@ -53,6 +72,21 @@
 5. 回到「素材 AI 写作」，贴链接或名称，生成 → 检查 → 保存为草稿。
 
 从源码安装：把本仓库克隆或解压到 `wp-content/plugins/sucaizy-ai-writer/`，目录名和主文件名都不要改。
+
+## GitHub 下载怎么用
+
+1. 在「生成文章」上方的输入框里贴 `https://github.com/owner/repo`（或直接写 `owner/repo`），「下载 GitHub 内容」按钮就会出现。
+2. 点开弹窗，选版本、勾文件。列表里已经按 macOS / Windows / Linux / 通用 分好，可以只勾某一列。
+3. 「保存到」填一个子目录，比如 `cli/v2.104.0`，弹窗里会实时显示每个文件的完整落盘路径。
+4. 点「开始下载」，分片并发跑完自动合并，完成后给出服务器路径；如果根目录在网站内容目录里，还会给出可直接引用的公网链接。
+
+几个要点：
+
+- **存哪里**：设置页「下载根目录」留空时存在 `wp-content/uploads/saw-github/`，下载完可以直接拿到链接写进文章；填 `/www/wwwroot/downloads` 这类绝对路径则存到站外，只显示服务器路径，不暴露给公网。
+- **速度**：默认 3 个分片并发，共享主机建议 2–3，独立服务器可以 4–6。小于 8 MB 的文件自动按单连接下载，省掉合并开销。
+- **下不动**：内置直连 + ghfast.top + gh-proxy.com + ghproxy.net + gh.llkk.cc 五条线路，探测后选最快的一条，中途失败自动换下一条。全部不通时在设置页「下载线路」里填自己的镜像，一行一条，`{url}` 会被替换成真实地址。
+- **接口额度**：GitHub 匿名接口每小时 60 次，扫描几个仓库就用完。填一个只读 Token 可以提到 5000 次/小时，插件只用它读 Release 列表，不需要任何写权限。
+- **安全**：下载地址只接受 GitHub 域名，路径逐段过滤 `..`，隐藏文件前缀会被剥掉；任务归属当前用户，别人的任务 ID 调用不到。单文件大小上限默认 512 MB，可在设置页调整。
 
 ## 升级注意
 
@@ -86,9 +120,11 @@ sucaizy-ai-writer/
 │   ├── class-saw-http.php     # 并发抓取（curl_multi）、编码处理、超时兜底
 │   ├── class-saw-generator.php# 抓取编排、HTML 解析、提示词、调用模型、JSON 解析
 │   ├── class-saw-quality.php  # 中文字数、断句收短、标点规范化、结构校验
+│   ├── class-saw-github.php   # Release 扫描、线路探测、分片下载与续传、合并
 │   ├── class-saw-admin.php    # 后台页面、设置、AJAX、环境自检
 │   └── class-saw-frontend.php # 投稿页生成器、短代码
 ├── assets/                    # 后台与前端 CSS/JS
+├── screenshots/               # README 截图
 ├── uninstall.php              # 卸载清理
 ├── readme.txt                 # WordPress 插件目录格式说明
 └── CHANGELOG.md

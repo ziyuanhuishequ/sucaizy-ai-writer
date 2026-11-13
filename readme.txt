@@ -1,10 +1,10 @@
 === 素材资源网 AI 文章写作 ===
 Contributors: sucaizy
-Tags: ai writing, resource article, openai, github
+Tags: ai writing, resource article, openai, github, release download
 Requires at least: 6.4
 Tested up to: 6.4.3
 Requires PHP: 7.2
-Stable tag: 1.6.6
+Stable tag: 1.7.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -38,6 +38,7 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
 * 支持公开网页、GitHub 仓库、软件名称和数字素材名称。
 * 网页、GitHub API、最新 Release 和参考检索改为并发抓取，同一轮请求内完成，明显缩短等待时间。
+* 输入框里出现 GitHub 地址时，「生成文章」旁边会多出「下载 GitHub 内容」：列出所有版本的安装包，可勾选、可指定保存目录、按系统自动分文件夹，下载完成直接给出站内链接。
 * 资料默认缓存 180 分钟，同一链接再次生成会直接复用，生成速度最快；后台可一键清空缓存。
 * GitHub 链接自动读取 Stars、许可证、主要语言和最新 Release。
 * 默认生成 5 个备选标题（3-10 可调），每个标题 43-67 个汉字（多数 50-60 字），写成完整一句话；程序会过滤超长、空洞夸张、不含资源名称的标题，并自动在标点处收短。
@@ -78,6 +79,15 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 * 从 1.5.0 升级时，如果写作 Skill 仍是 1.5.0 的内置默认内容，插件会自动改用 1.6.0 的新默认规范；自己改过的 Skill 不会被覆盖。
 
 == Changelog ==
+
+= 1.7.0 =
+* 新增「下载 GitHub 内容」：输入框识别到 GitHub 地址后，生成按钮旁会出现下载入口，可把 Release 里的安装包直接下到服务器指定目录。
+* 支持多版本切换、按系统自动分文件夹（Windows / macOS / Linux / Android / iOS / 源码）、同名文件自动加序号不覆盖。
+* 大文件分片并发下载（默认 3 片，可调 1-8），每个分片单独请求，不受 PHP 脚本超时限制；中断后按已有字节续传，不会从头重下。
+* 内置多条下载线路，探测时自动挑最快的一条，下载中途失败会自动换线重试，不需要手动切换。
+* 可填 GitHub Token 把接口额度从每小时 60 次提到 5000 次；不填也能用。
+* 下载目录、线路、分片数、单文件上限、单片超时都能在「接口设置 → GitHub 下载」里调整。
+* 完成后显示文件绝对路径与站内链接，可一键复制路径或直接下载到本机。
 
 = 1.6.6 =
 * 修复 PHP 8 / 8.3 下“点了没反应”：PHP 8 会在运行时抛出新的 deprecation 和 warning，主机开启 display_errors 时这些文字会插在 AJAX 返回的 JSON 前面，前端解析失败。现在所有 AJAX 响应都会先丢弃意外输出（同时写进 error_log），JSON 不会再被污染。
