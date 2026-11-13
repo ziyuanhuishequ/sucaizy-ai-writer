@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 安全问题
+    url: https://www.sucaizy.com/
+    about: 发现越权、密钥泄露或注入类问题时请勿公开提交，通过插件作者主页联系。

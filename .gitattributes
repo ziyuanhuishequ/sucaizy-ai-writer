@@ -1,0 +1,20 @@
+# 统一换行，避免 Windows 提交把整个文件标成改动
+* text=auto eol=lf
+
+*.php   text eol=lf
+*.js    text eol=lf
+*.css   text eol=lf
+*.md    text eol=lf
+*.txt   text eol=lf
+*.yml   text eol=lf
+
+*.png   binary
+*.jpg   binary
+*.gif   binary
+*.ico   binary
+*.zip   binary
+
+# 让 GitHub 语言统计偏向 PHP，而不是把 readme 当成主语言
+readme.txt linguist-documentation
+README.md  linguist-documentation
+CHANGELOG.md linguist-documentation

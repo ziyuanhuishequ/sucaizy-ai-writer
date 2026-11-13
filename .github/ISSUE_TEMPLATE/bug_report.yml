@@ -1,0 +1,67 @@
+name: Bug 报告
+description: 生成失败、内容不对、界面无反应、乱码
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        贴日志前请删掉 **API Key、域名、文章正文**。
+        设置页底部的「运行环境自检」可以直接看到版本信息，截图更快。
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: 插件版本
+      description: 后台「插件」列表里显示的版本号
+      placeholder: 1.6.6
+    validations:
+      required: true
+
+  - type: input
+    id: env
+    attributes:
+      label: WordPress 与 PHP 版本
+      placeholder: WP 6.4.3 / PHP 8.3.36
+    validations:
+      required: true
+
+  - type: dropdown
+    id: symptom
+    attributes:
+      label: 现象属于哪一类
+      description: 这三类的排查路径完全不同，选准了能省来回
+      options:
+        - 点生成完全没反应 / 请求失败
+        - 生成成功，但内容不符合预期（字数、语气、结构）
+        - 生成成功，但有乱码或排版错乱
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 输入 https://example.com/xxx
+        2. 点击「生成文章」
+        3. 约 20 秒后弹出「请求失败」
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果与实际结果
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 报错信息
+      description: wp-content/debug.log 里 `saw_` 开头的行，或浏览器控制台的报错
+      render: shell
+    validations:
+      required: false

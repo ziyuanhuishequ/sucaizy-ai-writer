@@ -1,0 +1,37 @@
+.saw-wrap { max-width: 980px; }
+.saw-panel { margin-top: 20px; padding: 22px; background: #fff; border: 1px solid #dcdcde; border-radius: 4px; }
+.saw-field { margin-bottom: 18px; }
+.saw-field > label { display: block; margin-bottom: 7px; font-weight: 600; }
+.saw-field textarea, .saw-field input[type="text"], .saw-field input[type="url"], .saw-field input[type="password"], .saw-field select { width: 100%; max-width: none; }
+.saw-rich-editor { min-height: 360px; max-height: 620px; overflow: auto; padding: 14px; border: 1px solid #8c8f94; border-radius: 4px; background: #fff; line-height: 1.8; }
+.saw-rich-editor:focus { border-color: #2271b1; box-shadow: 0 0 0 1px #2271b1; outline: 2px solid transparent; }
+.saw-rich-editor h2, .saw-rich-editor h3 { margin-top: 1.5em; }
+.saw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.saw-panel .spinner { float: none; vertical-align: middle; }
+#saw-message, #saw-save-message, #saw-test-message, #saw-cache-message { min-height: 20px; margin: 12px 0 0; }
+.saw-api-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.saw-error { color: #b32d2e; }
+.saw-success { color: #008a20; }
+.saw-preview-wrap { margin: 18px 0; }
+.saw-preview-wrap summary { cursor: pointer; font-weight: 600; }
+#saw-preview { width: 100%; min-height: 480px; margin-top: 12px; border: 1px solid #dcdcde; background: #fff; }
+.saw-settings { max-width: 850px; }
+.saw-skill-settings { max-width: 1080px; }
+.saw-skill-settings textarea { width: 100%; min-height: 620px; padding: 14px; font: 14px/1.7 Consolas, Monaco, monospace; }
+.saw-panel h2 { margin-top: 1.4em; padding-top: 1em; border-top: 1px solid #f0f0f1; font-size: 15px; }
+.saw-panel h2:first-of-type { margin-top: 0; padding-top: 0; border-top: 0; }
+.saw-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.saw-timer { color: #646970; font-variant-numeric: tabular-nums; }
+.saw-stats { margin: 0 0 14px; padding: 9px 12px; background: #f6f7f7; border-left: 4px solid #2271b1; color: #3c434a; font-size: 13px; line-height: 1.7; }
+.saw-notices { margin: 0 0 16px; padding: 10px 14px; background: #fcf9e8; border-left: 4px solid #dba617; color: #3c434a; font-size: 13px; }
+.saw-notices ul { margin: 6px 0 0 18px; list-style: disc; }
+.saw-notices li { margin: 3px 0; }
+.saw-warnings-title { margin: 0; font-weight: 600; }
+.saw-inline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.saw-inline select { flex: 1 1 320px; width: auto; }
+.saw-inline .button { flex: 0 0 auto; }
+@media (max-width: 782px) { .saw-grid { grid-template-columns: 1fr; gap: 0; } }
+.saw-env-panel { margin-top: 24px; }
+.saw-env-panel h2 { margin-top: 0; padding-top: 0; border-top: 0; }
+.saw-env-table { margin-top: 10px; border: 1px solid #dcdcde; }
+.saw-env-table th { font-weight: 600; }

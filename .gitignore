@@ -1,0 +1,29 @@
+# 系统与编辑器
+.DS_Store
+.DS_Store?
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*~
+
+# 依赖与构建产物
+node_modules/
+vendor/
+build/
+dist/
+
+# 发布包（走 GitHub Releases，不进仓库）
+*.zip
+
+# 日志与缓存
+*.log
+debug.log
+.phpcs.cache
+.phpunit.result.cache
+
+# 本地调试配置
+wp-config.php
+.env
+.env.*

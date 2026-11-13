@@ -1,0 +1,275 @@
+.saw-front {
+    margin: 0 0 24px;
+    padding: 20px;
+    border: 1px solid #e3e6e8;
+    border-radius: 8px;
+    background: #fff;
+    color: #252a2e;
+    box-sizing: border-box;
+}
+
+.saw-front-launcher {
+    position: fixed;
+    right: 20px;
+    bottom: 24px;
+    z-index: 100001;
+    min-height: 42px;
+    padding: 9px 16px;
+    border: 1px solid #1677ff;
+    border-radius: 4px;
+    background: #1677ff;
+    color: #fff;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
+}
+
+.saw-front-mount {
+    width: 100%;
+    margin-top: 16px;
+}
+
+.saw-front-launcher.saw-front-embedded {
+    position: static;
+    display: block;
+    width: 100%;
+    min-height: 48px;
+    box-shadow: none;
+}
+
+.saw-front-dock {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    right: auto;
+    bottom: auto;
+    transform: translate(-50%, -50%);
+    z-index: 100000;
+    width: min(720px, calc(100vw - 40px));
+    max-height: calc(100vh - 110px);
+    overflow: auto;
+    box-shadow: 0 10px 32px rgba(0, 0, 0, .22);
+}
+
+.saw-front-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    z-index: 2;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: #f0f2f4;
+    color: #343a40;
+    font: 24px/34px Arial, sans-serif;
+    text-align: center;
+    cursor: pointer;
+}
+
+.saw-front-close:hover,
+.saw-front-close:focus {
+    background: #e2e6ea;
+    color: #111;
+    outline: 2px solid #1677ff;
+}
+
+.saw-front-dock .saw-front {
+    margin: 0;
+}
+
+.saw-front h2 {
+    margin: 0 0 18px;
+    font-size: 20px;
+    line-height: 1.4;
+}
+
+.saw-front-field {
+    margin-bottom: 14px;
+}
+
+.saw-front-field label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+}
+
+.saw-front input,
+.saw-front select,
+.saw-front textarea {
+    display: block;
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 10px;
+    border: 1px solid #c9ced3;
+    border-radius: 4px;
+    background: #fff;
+    color: #252a2e;
+    box-sizing: border-box;
+    font: inherit;
+}
+
+.saw-front textarea {
+    resize: vertical;
+}
+
+.saw-front-editor {
+    width: 100%;
+    min-height: 260px;
+    max-height: 560px;
+    overflow: auto;
+    padding: 14px;
+    border: 1px solid #c9ced3;
+    border-radius: 4px;
+    background: #fff;
+    color: #252a2e;
+    box-sizing: border-box;
+    line-height: 1.8;
+}
+
+.saw-front-editor:focus {
+    border-color: #1677ff;
+    outline: 2px solid rgba(22, 119, 255, .16);
+}
+
+.saw-front-editor h2,
+.saw-front-editor h3 {
+    margin-top: 1.5em;
+}
+
+.saw-front-row {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+}
+
+.saw-front-row > .saw-front-field:first-child {
+    flex: 0 0 190px;
+}
+
+.saw-front-grow {
+    flex: 1 1 auto;
+}
+
+.saw-front-button {
+    min-height: 40px;
+    padding: 8px 16px;
+    border: 1px solid #1677ff;
+    border-radius: 4px;
+    background: #1677ff;
+    color: #fff;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.saw-front-button:disabled {
+    cursor: wait;
+    opacity: .65;
+}
+
+.saw-front-secondary {
+    background: #fff;
+    color: #252a2e;
+    border-color: #aeb5bc;
+}
+
+.saw-front-loading {
+    margin-left: 10px;
+    color: #626a72;
+}
+
+.saw-front-loading em {
+    font-style: normal;
+    color: #8a9299;
+}
+
+.saw-front-stats {
+    margin: 0 0 12px;
+    padding: 8px 12px;
+    background: #f4f7fb;
+    border-left: 3px solid #1677ff;
+    color: #4c545b;
+    font-size: 13px;
+    line-height: 1.7;
+}
+
+.saw-front-notices {
+    margin: 0 0 14px;
+    padding: 8px 12px;
+    background: #fdf7e6;
+    border-left: 3px solid #d99b16;
+    color: #4c545b;
+    font-size: 13px;
+    line-height: 1.7;
+}
+
+.saw-front-message {
+    min-height: 1.5em;
+    margin: 10px 0 0;
+}
+
+.saw-front-message.is-error {
+    color: #b42318;
+}
+
+.saw-front-message.is-success {
+    color: #067647;
+}
+
+.saw-front-result {
+    margin-top: 22px;
+    padding-top: 20px;
+    border-top: 1px solid #e3e6e8;
+}
+
+.saw-front-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.saw-front-preview {
+    margin-top: 16px;
+    padding: 16px;
+    border: 1px solid #e3e6e8;
+    background: #fafbfc;
+    line-height: 1.8;
+}
+
+.saw-front-preview h2,
+.saw-front-preview h3 {
+    margin-top: 1.5em;
+}
+
+@media (max-width: 640px) {
+    .saw-front {
+        padding: 16px;
+    }
+
+    .saw-front-row {
+        display: block;
+    }
+
+    .saw-front-loading {
+        display: block;
+        margin: 10px 0 0;
+    }
+
+    .saw-front-launcher {
+        right: 12px;
+        bottom: 14px;
+    }
+
+    .saw-front-dock {
+        left: 10px;
+        top: 44px;
+        right: 10px;
+        bottom: 44px;
+        transform: none;
+        width: calc(100vw - 20px);
+        max-height: calc(100vh - 88px);
+    }
+}
