@@ -22,7 +22,7 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
 == 源码与问题反馈 ==
 
-* 源码地址：https://github.com/sucaizy/sucaizy-ai-writer
+* 源码地址：https://github.com/ziyuanhuishequ/sucaizy-ai-writer
 * 遇到问题请附上插件版本、WordPress 版本和 PHP 版本，设置页底部的“运行环境自检”可以直接看到。
 
 == 升级 ==

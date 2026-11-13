@@ -15,7 +15,7 @@
 ## 提交代码
 
 ```bash
-git clone https://github.com/<你的用户名>/sucaizy-ai-writer.git
+git clone https://github.com/ziyuanhuishequ/sucaizy-ai-writer.git
 cd sucaizy-ai-writer
 # 软链或复制到 wp-content/plugins/sucaizy-ai-writer 进行调试
 ```
